@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fmtDate, daysUntil } from '../utils';
 import HamburgerMenu from './HamburgerMenu';
+import Logo from './Logo';
 import api from '../api';
 
 // Dismissed notifications are tracked per-tab by a stable key (kind:id), so
@@ -91,15 +92,8 @@ export default function Topbar({ back, backLabel }) {
         borderBottom: '1px solid var(--border-2)',
       }}>
         {/* Logo */}
-        <div onClick={() => navigate(landingPath)}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 11,
-            background: 'var(--accent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 900, fontSize: 18,
-          }}>H</div>
-          <span style={{ fontWeight: 900, fontSize: 19, letterSpacing: '-.5px' }}>Heads up</span>
+        <div onClick={() => navigate(landingPath)} style={{ cursor: 'pointer' }}>
+          <Logo iconSize={34} fontSize={19} />
         </div>
 
         {/* Back button */}

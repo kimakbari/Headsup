@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Logo from '../components/Logo';
 
 export default function Login() {
   const { login }    = useAuth();
@@ -48,15 +49,8 @@ export default function Login() {
         position: 'relative', overflow: 'hidden',
       }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, zIndex: 1 }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 13,
-            background: 'var(--accent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 900, fontSize: 22,
-            boxShadow: '0 6px 18px rgba(224,122,95,.4)',
-          }}>H</div>
-          <span style={{ fontWeight: 900, fontSize: 24, letterSpacing: '-.5px' }}>Heads up</span>
+        <div style={{ zIndex: 1 }}>
+          <Logo iconSize={42} fontSize={24} shadow />
         </div>
 
         {/* Headline */}
