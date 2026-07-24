@@ -11,6 +11,7 @@ import Board        from './pages/Board';
 import TaskDetail   from './pages/TaskDetail';
 import Members      from './pages/Members';
 import MemberForm   from './pages/MemberForm';
+import ProfilePage  from './pages/ProfilePage';
 import TeamForm     from './pages/TeamForm';
 import ProjectForm  from './pages/ProjectForm';
 
@@ -47,6 +48,9 @@ export default function App() {
 
         {/* Member home */}
         <Route path="/my-tasks"   element={<MyTasks />} />
+
+        {/* Profile — any logged-in member */}
+        <Route path="/profile"    element={<ProfilePage />} />
 
         {/* Teams */}
         <Route path="/teams"                    element={<AdminOnly><Teams /></AdminOnly>} />

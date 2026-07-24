@@ -91,6 +91,9 @@ export default function HamburgerMenu({ onClose }) {
         {/* Home */}
         {btn(() => go(landingPath), <><span>🏠</span> {landingLabel}</>, { marginBottom: 10 })}
 
+        {/* Profile */}
+        {btn(() => go('/profile'), <><span>👤</span> My Profile</>, { marginBottom: 10 })}
+
         {/* Teams section */}
         <div style={{
           fontWeight: 900, fontSize: 12, color: 'var(--text-4)',

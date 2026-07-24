@@ -37,6 +37,65 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/members/me  — current user's own profile + teams they belong to
+router.get('/me', async (req, res) => {
+  try {
+    const { rows: teams } = await query(
+      `SELECT t.id, t.name, t.icon, t.color
+         FROM team_members tm
+         JOIN teams t ON t.id = tm.team_id
+        WHERE tm.member_id = $1
+        ORDER BY t.name`,
+      [req.user.id]
+    );
+    res.json({
+      id:          req.user.id,
+      username:    req.user.username,
+      displayName: req.user.display_name,
+      initials:    req.user.initials,
+      color:       req.user.color,
+      isAdmin:     req.user.is_admin,
+      teams,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/members/me  — self-service: change own username and/or password
+router.put('/me', async (req, res) => {
+  try {
+    const { username, currentPassword, newPassword } = req.body;
+    if (!username?.trim()) return res.status(400).json({ error: 'Username is required' });
+
+    const { rows: existing } = await query(
+      'SELECT id FROM members WHERE LOWER(username) = LOWER($1) AND id != $2',
+      [username.trim(), req.user.id]
+    );
+    if (existing.length) return res.status(409).json({ error: 'Username is already taken' });
+
+    if (newPassword?.trim()) {
+      if (!currentPassword?.trim()) {
+        return res.status(400).json({ error: 'Enter your current password to set a new one' });
+      }
+      const { rows } = await query('SELECT password_hash FROM members WHERE id = $1', [req.user.id]);
+      const valid = await bcrypt.compare(currentPassword.trim(), rows[0].password_hash);
+      if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+
+      const hash = await bcrypt.hash(newPassword.trim(), 10);
+      await query('UPDATE members SET username = $1, password_hash = $2 WHERE id = $3', [username.trim(), hash, req.user.id]);
+    } else {
+      await query('UPDATE members SET username = $1 WHERE id = $2', [username.trim(), req.user.id]);
+    }
+
+    res.json({ id: req.user.id, username: username.trim() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /api/members  — create member (admin only)
 router.post('/', requireAdmin, async (req, res) => {
   try {
