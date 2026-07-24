@@ -22,10 +22,7 @@ export default function Logo({ iconSize = 34, fontSize = 19, shadow = false, sho
           display: 'flex', alignItems: 'baseline', gap: fontSize * 0.28,
         }}>
           <span style={{ color: 'var(--text)' }}>Heads</span>
-          <span style={{
-            color: 'var(--accent)', display: 'inline-block',
-            transform: 'rotate(-8deg)', fontSize: fontSize * 1.15,
-          }}>up</span>
+          <span style={{ color: 'var(--accent)', fontSize: fontSize * 1.15 }}>up</span>
         </span>
       )}
     </div>
