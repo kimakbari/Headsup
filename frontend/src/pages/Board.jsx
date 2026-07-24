@@ -447,7 +447,7 @@ export default function Board() {
             onDrop={() => drop(col.key)}
             style={{
               flexShrink: 0, width: 282,
-              background: col.bg, border: '1px solid var(--border-2)',
+              background: `color-mix(in srgb, ${col.color} 12%, var(--card))`, border: '1px solid var(--border-2)',
               borderRadius: 18, padding: 14,
             }}
           >

@@ -1,11 +1,11 @@
 // ── Status metadata ───────────────────────────────────────────────────────────
 export const STATUSES = [
-  { key: 'todo',      label: 'To Do',               color: '#A99E90', bg: '#F7F1E8' },
-  { key: 'doing',     label: 'Doing',               color: '#5FA8A0', bg: '#EDF4F2' },
-  { key: 'done',      label: 'Done',                color: '#7FA87B', bg: '#EFF4ED' },
-  { key: 'pending',   label: 'Pending',             color: '#C98A2B', bg: '#FBF4E6' },
-  { key: 'approval',  label: 'Waiting for Approval',color: '#9B86C4', bg: '#F2EEF8' },
-  { key: 'cancelled', label: 'Cancelled',           color: '#B9AD9C', bg: '#F5F1EA' },
+  { key: 'todo',      label: 'To Do',               color: '#A99E90' },
+  { key: 'doing',     label: 'Doing',               color: '#5FA8A0' },
+  { key: 'done',      label: 'Done',                color: '#7FA87B' },
+  { key: 'pending',   label: 'Pending',             color: '#C98A2B' },
+  { key: 'approval',  label: 'Waiting for Approval',color: '#9B86C4' },
+  { key: 'cancelled', label: 'Cancelled',           color: '#B9AD9C' },
 ];
 
 export function statusMeta(key) {
