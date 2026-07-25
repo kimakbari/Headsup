@@ -388,14 +388,15 @@ export default function Board() {
   }, [location.state]);
 
   const drop = async (status) => {
-    if (!dragId.current) return;
+    const taskId = dragId.current;
+    if (!taskId) return;
+    dragId.current = null;
     try {
-      await api.put(`/tasks/${dragId.current}/status`, { status });
-      setTasks(ts => ts.map(t => t.id === dragId.current ? { ...t, status } : t));
+      await api.put(`/tasks/${taskId}/status`, { status });
+      setTasks(ts => ts.map(t => t.id === taskId ? { ...t, status } : t));
     } catch (err) {
       toast(err.response?.data?.error || 'Could not move task');
     }
-    dragId.current = null;
   };
 
   // All statuses always render (even with zero cards) so every column stays a valid drop target.
