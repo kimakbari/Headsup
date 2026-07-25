@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Topbar from '../components/Topbar';
-import TeamBadge from '../components/TeamBadge';
+import ProgressRing from '../components/ProgressRing';
 import { fmtDate, deadlineColor } from '../utils';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
@@ -92,7 +92,7 @@ export default function TeamProjects() {
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <TeamBadge name={team?.name} color={team?.color} icon={team?.icon} size={56} radius={15} />
+              <ProgressRing pct={p.progress} size={56} r={24} stroke={6} />
               <div>
                 <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-.3px', lineHeight: 1.2, paddingRight: user?.isAdmin ? 34 : 0 }}>{p.title}</div>
                 <div style={{ color: deadlineColor(p.deadline, ''), fontWeight: 800, fontSize: 12, marginTop: 4 }}>

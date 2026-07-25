@@ -16,6 +16,7 @@ export default function TaskDetail() {
   const [newComment, setNewComment] = useState('');
   const [posting, setPosting]   = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
 
   const load = () => api.get(`/tasks/${taskId}`).then(r => setTask(r.data)).finally(() => setLoading(false));
 
@@ -45,6 +46,35 @@ export default function TaskDetail() {
     await api.delete(`/tasks/${taskId}`);
     toast('Task deleted');
     navigate(`/projects/${projectId}/board`);
+  };
+
+  const duplicateTask = async () => {
+    if (!task || duplicating) return;
+    setDuplicating(true);
+    try {
+      await api.post('/tasks', {
+        projectId,
+        title:       `${task.title} (copy)`,
+        ownerIds:    task.owners?.map(o => o.id) || [],
+        deadline:    task.deadline || '',
+        priority:    task.priority,
+        description: task.description || '',
+        weighted:    task.weighted,
+        subtasks: task.subtasks?.map(s => ({
+          title:       s.title,
+          done:        false,
+          weight:      s.weight,
+          deadline:    s.deadline || '',
+          assigneeIds: s.assignees?.map(a => a.id) || [],
+        })) || [],
+      });
+      toast('Task duplicated');
+      navigate(`/projects/${projectId}/board`);
+    } catch (err) {
+      toast(err.response?.data?.error || 'Could not duplicate task');
+    } finally {
+      setDuplicating(false);
+    }
   };
 
   const addComment = async () => {
@@ -137,6 +167,17 @@ export default function TaskDetail() {
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
                 >Edit</button>
+              )}
+              {task.perms?.create && (
+                <button onClick={duplicateTask} disabled={duplicating} style={{
+                  background: 'var(--inner-bg)', border: '1.5px solid var(--border)',
+                  borderRadius: 11, padding: '9px 15px', fontWeight: 800, fontSize: 13,
+                  cursor: duplicating ? 'not-allowed' : 'pointer', opacity: duplicating ? .6 : 1,
+                  transition: 'border-color .15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                >{duplicating ? 'Duplicating…' : 'Duplicate'}</button>
               )}
               {task.perms?.delete && (
                 <button onClick={deleteTask} style={{

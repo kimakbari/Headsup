@@ -398,9 +398,8 @@ export default function Board() {
     dragId.current = null;
   };
 
-  const columns = STATUSES
-    .map(s => ({ ...s, cards: tasks.filter(t => t.status === s.key) }))
-    .filter(c => c.cards.length > 0);
+  // All statuses always render (even with zero cards) so every column stays a valid drop target.
+  const columns = STATUSES.map(s => ({ ...s, cards: tasks.filter(t => t.status === s.key) }));
 
   const teamId = project?.teamId;
 
@@ -459,7 +458,7 @@ export default function Board() {
                 background: 'var(--card)', borderRadius: 999, padding: '2px 9px',
               }}>{col.cards.length}</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 50 }}>
               {col.cards.map(task => (
                 <TaskCard
                   key={task.id}
@@ -468,11 +467,20 @@ export default function Board() {
                   onDragStart={() => { dragId.current = task.id; }}
                 />
               ))}
+              {col.cards.length === 0 && (
+                <div style={{
+                  border: '1.5px dashed var(--dashed-border)', borderRadius: 12,
+                  minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--text-4)', fontWeight: 700, fontSize: 12,
+                }}>
+                  Drop here
+                </div>
+              )}
             </div>
           </div>
         ))}
 
-        {columns.length === 0 && (
+        {tasks.length === 0 && (
           <div style={{
             background: 'var(--card)', border: '1px dashed var(--border-2)',
             borderRadius: 18, padding: 48, textAlign: 'center',
