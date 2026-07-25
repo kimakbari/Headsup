@@ -12,6 +12,14 @@ export function statusMeta(key) {
   return STATUSES.find(s => s.key === key) || STATUSES[0];
 }
 
+// ── Blocker teams ─────────────────────────────────────────────────────────────
+// Fixed roster — a task moved to Pending must say which of these it's blocked on.
+export const BLOCKER_TEAMS = [
+  'Last mile', 'Infra & dev', 'Execution', 'Maintenance and HSE',
+  'Central Procurement', 'Recruitment', 'R&C', 'Ops Data', 'Data',
+  'Market place', 'Market', 'HR', 'Commercial', 'Finance', 'Smart', 'Product',
+];
+
 // ── Priority metadata ─────────────────────────────────────────────────────────
 export function prioMeta(p) {
   return {

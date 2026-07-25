@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import Topbar from '../components/Topbar';
+import BlockedByModal from '../components/BlockedByModal';
 import { STATUSES, statusMeta, prioMeta, fmtDate, deadlineColor } from '../utils';
 import { useToast } from '../components/Toast';
 import api from '../api';
@@ -37,6 +38,16 @@ function TaskCard({ task, onOpen, onDragStart }) {
       <div style={{ margin: '11px 0 6px', height: 7, borderRadius: 999, background: 'var(--inner-border)', overflow: 'hidden' }}>
         <div style={{ height: '100%', borderRadius: 999, background: sm.color, width: `${task.progress}%` }} />
       </div>
+
+      {task.status === 'pending' && task.blockedByTeam && (
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          fontWeight: 800, fontSize: 10, color: sm.color, background: 'var(--inner-bg)',
+          border: `1px solid ${sm.color}`, borderRadius: 999, padding: '3px 8px', marginBottom: 8,
+        }}>
+          🚧 Blocked by {task.blockedByTeam}
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 9 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -354,6 +365,7 @@ export default function Board() {
   const [showModal, setShowModal] = useState(false);
   const [editTask, setEditTask]   = useState(null);
   const [perms, setPerms]         = useState({});
+  const [blockerPrompt, setBlockerPrompt] = useState(null); // { taskId } while open
   const dragId = useRef(null);
 
   const load = async () => {
@@ -387,16 +399,28 @@ export default function Board() {
     }
   }, [location.state]);
 
+  const moveTask = async (taskId, status, blockedByTeam) => {
+    try {
+      await api.put(`/tasks/${taskId}/status`, { status, blockedByTeam });
+      setTasks(ts => ts.map(t => t.id === taskId ? { ...t, status, blockedByTeam: blockedByTeam || null } : t));
+    } catch (err) {
+      toast(err.response?.data?.error || 'Could not move task');
+    }
+  };
+
   const drop = async (status) => {
     const taskId = dragId.current;
     if (!taskId) return;
     dragId.current = null;
-    try {
-      await api.put(`/tasks/${taskId}/status`, { status });
-      setTasks(ts => ts.map(t => t.id === taskId ? { ...t, status } : t));
-    } catch (err) {
-      toast(err.response?.data?.error || 'Could not move task');
+
+    const current = tasks.find(t => t.id === taskId);
+    if (!current || current.status === status) return;
+
+    if (status === 'pending') {
+      setBlockerPrompt({ taskId });
+      return;
     }
+    await moveTask(taskId, status);
   };
 
   // All statuses always render (even with zero cards) so every column stays a valid drop target.
@@ -499,6 +523,13 @@ export default function Board() {
           editTask={editTask}
           onClose={() => setShowModal(false)}
           onSaved={() => { setShowModal(false); load(); }}
+        />
+      )}
+
+      {blockerPrompt && (
+        <BlockedByModal
+          onCancel={() => setBlockerPrompt(null)}
+          onConfirm={(team) => { moveTask(blockerPrompt.taskId, 'pending', team); setBlockerPrompt(null); }}
         />
       )}
     </>

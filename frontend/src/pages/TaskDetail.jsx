@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Topbar from '../components/Topbar';
+import BlockedByModal from '../components/BlockedByModal';
 import { STATUSES, statusMeta, prioMeta, fmtDate, deadlineColor, timeAgo } from '../utils';
 import { useToast } from '../components/Toast';
 import api from '../api';
@@ -17,6 +18,7 @@ export default function TaskDetail() {
   const [posting, setPosting]   = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [blockerPrompt, setBlockerPrompt] = useState(false);
 
   const load = () => api.get(`/tasks/${taskId}`).then(r => setTask(r.data)).finally(() => setLoading(false));
 
@@ -35,10 +37,15 @@ export default function TaskDetail() {
     load();
   };
 
-  const changeStatus = async (status) => {
-    await api.put(`/tasks/${taskId}/status`, { status });
+  const changeStatus = async (status, blockedByTeam) => {
+    await api.put(`/tasks/${taskId}/status`, { status, blockedByTeam });
     load();
     toast('Status updated');
+  };
+
+  const onStatusSelect = (status) => {
+    if (status === 'pending') { setBlockerPrompt(true); return; }
+    changeStatus(status);
   };
 
   const deleteTask = async () => {
@@ -150,7 +157,7 @@ export default function TaskDetail() {
                   background: 'var(--divider)', borderRadius: 999, padding: '4px 11px',
                 }}>
                   <span style={{ width: 9, height: 9, borderRadius: '50%', background: sm.color }} />
-                  {sm.label}
+                  {sm.label}{task.status === 'pending' && task.blockedByTeam ? ` · ${task.blockedByTeam}` : ''}
                 </span>
               </div>
               <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: '-.6px', lineHeight: 1.15 }}>
@@ -224,10 +231,16 @@ export default function TaskDetail() {
               <div style={metaLabel}>Progress</div>
               <div style={{ fontWeight: 900, fontSize: 14 }}>{task.progress}%</div>
             </div>
+            {task.status === 'pending' && task.blockedByTeam && (
+              <div>
+                <div style={metaLabel}>Blocked by</div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: sm.color }}>🚧 {task.blockedByTeam}</div>
+              </div>
+            )}
             {task.perms?.edit && (
               <div>
                 <div style={metaLabel}>Move to</div>
-                <select value={task.status} onChange={e => changeStatus(e.target.value)} style={{
+                <select value={task.status} onChange={e => onStatusSelect(e.target.value)} style={{
                   border: '1.5px solid var(--border)', borderRadius: 10,
                   padding: '7px 10px', fontWeight: 800, fontSize: 13,
                   background: 'var(--card)', cursor: 'pointer', outline: 'none',
@@ -462,6 +475,13 @@ export default function TaskDetail() {
           }}>Post</button>
         </div>
       </div>
+
+      {blockerPrompt && (
+        <BlockedByModal
+          onCancel={() => setBlockerPrompt(false)}
+          onConfirm={(team) => { changeStatus('pending', team); setBlockerPrompt(false); }}
+        />
+      )}
     </>
   );
 }

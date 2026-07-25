@@ -2,6 +2,13 @@ const router = require('express').Router();
 const { query, withTransaction } = require('../db');
 const { getProjectPerms } = require('../middleware/auth');
 
+// Fixed roster of blocker teams — see also BLOCKER_TEAMS in frontend/src/utils.js
+const BLOCKER_TEAMS = [
+  'Last mile', 'Infra & dev', 'Execution', 'Maintenance and HSE',
+  'Central Procurement', 'Recruitment', 'R&C', 'Ops Data', 'Data',
+  'Market place', 'Market', 'HR', 'Commercial', 'Finance', 'Smart', 'Product',
+];
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 async function calcProgress(taskRow, subs) {
   if (!subs.length) return taskRow.status === 'done' ? 100 : 0;
@@ -79,6 +86,7 @@ async function buildTask(row, userId, isAdmin) {
     status:      row.status,
     description: row.description,
     weighted:    row.weighted,
+    blockedByTeam: row.blocked_by_team,
     progress,
     perms,
     subtasks: subs.map(s => ({
@@ -318,9 +326,13 @@ router.put('/:id', async (req, res) => {
 router.put('/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, blockedByTeam } = req.body;
     const valid = ['todo','doing','done','pending','approval','cancelled'];
     if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+
+    if (status === 'pending' && !BLOCKER_TEAMS.includes(blockedByTeam)) {
+      return res.status(400).json({ error: 'Pick which team this is blocked on' });
+    }
 
     const { rows: existing } = await query('SELECT * FROM tasks WHERE id = $1', [id]);
     if (!existing.length) return res.status(404).json({ error: 'Task not found' });
@@ -332,13 +344,16 @@ router.put('/:id/status', async (req, res) => {
       todo: 'To Do', doing: 'Doing', done: 'Done',
       pending: 'Pending', approval: 'Waiting for Approval', cancelled: 'Cancelled',
     };
+    // Being blocked on a team only makes sense while the task is actually Pending
+    const teamForColumn = status === 'pending' ? blockedByTeam : null;
 
     await withTransaction(async (client) => {
-      await client.query('UPDATE tasks SET status=$1 WHERE id=$2', [status, id]);
-      await logActivity(client, id, req.user, `moved this to ${statusLabels[status]}`);
+      await client.query('UPDATE tasks SET status=$1, blocked_by_team=$2 WHERE id=$3', [status, teamForColumn, id]);
+      const note = status === 'pending' ? ` (blocked by ${teamForColumn})` : '';
+      await logActivity(client, id, req.user, `moved this to ${statusLabels[status]}${note}`);
     });
 
-    res.json({ ok: true, status });
+    res.json({ ok: true, status, blockedByTeam: teamForColumn });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

@@ -68,8 +68,10 @@ CREATE TABLE IF NOT EXISTS tasks (
                 CHECK (status IN ('todo','doing','done','pending','approval','cancelled')),
   description TEXT,
   weighted    BOOLEAN      NOT NULL DEFAULT FALSE,
+  blocked_by_team VARCHAR(100),
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS blocked_by_team VARCHAR(100);
 
 -- ─── Task owners (many-to-many; a task can have any number of owners) ─────────
 CREATE TABLE IF NOT EXISTS task_owners (
