@@ -30,6 +30,9 @@ export default function TeamProjects() {
 
   useEffect(() => { load(); }, [teamId]);
 
+  const myTeamPerms  = team?.members.find(m => m.id === user?.id)?.perms;
+  const canCreate    = user?.isAdmin || (myTeamPerms?.edit && myTeamPerms?.create);
+
   if (loading) return (
     <>
       <Topbar back="/teams" backLabel="Teams" />
@@ -48,7 +51,7 @@ export default function TeamProjects() {
           </div>
           <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: '-.8px' }}>Projects</div>
         </div>
-        {user?.isAdmin && (
+        {canCreate && (
           <button onClick={() => navigate(`/teams/${teamId}/projects/new`)} style={{
             background: 'var(--accent)', color: '#fff', border: 'none',
             padding: '12px 18px', borderRadius: 13,
@@ -132,7 +135,7 @@ export default function TeamProjects() {
             borderRadius: 18, padding: 48, textAlign: 'center',
             color: 'var(--text-3)', fontWeight: 800,
           }}>
-            No projects yet{user?.isAdmin ? ' — click "Create Project" to add one' : ''}. 🌿
+            No projects yet{canCreate ? ' — click "Create Project" to add one' : ''}. 🌿
           </div>
         )}
       </div>

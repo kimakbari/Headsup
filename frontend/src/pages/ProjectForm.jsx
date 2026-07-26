@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Topbar from '../components/Topbar';
 import { useToast } from '../components/Toast';
+import { useAuth } from '../context/AuthContext';
 import api from '../api';
 
 const PERM_COLORS = { view: '#5FA8A0', edit: '#E2B25E', create: '#9B86C4', delete: '#D9614B' };
@@ -25,6 +26,7 @@ export default function ProjectForm() {
   const isEdit     = !!projectId;
   const navigate   = useNavigate();
   const toast      = useToast();
+  const { user }   = useAuth();
 
   const [team, setTeam]       = useState(null);
   const [teamId, setTeamId]   = useState(teamIdParam || null);
@@ -137,6 +139,21 @@ export default function ProjectForm() {
     <>
       <Topbar back="/teams" backLabel="Teams" />
       <div style={{ color: 'var(--text-3)', fontWeight: 800, padding: 40 }}>Loading…</div>
+    </>
+  );
+
+  const myTeamPerms = team?.members.find(m => m.id === user?.id)?.perms;
+  const canCreate   = user?.isAdmin || (myTeamPerms?.edit && myTeamPerms?.create);
+  if (!isEdit && !canCreate) return (
+    <>
+      <Topbar back={`/teams/${teamId}/projects`} backLabel="Projects" />
+      <div style={{
+        maxWidth: 480, margin: '60px auto 0', textAlign: 'center',
+        color: 'var(--text-3)', fontWeight: 800, background: 'var(--card)',
+        border: '1px dashed var(--border-2)', borderRadius: 18, padding: 40,
+      }}>
+        You need both Edit and Create permission on this team to create a project.
+      </div>
     </>
   );
 

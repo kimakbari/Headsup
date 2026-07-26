@@ -57,6 +57,29 @@ async function getProjectPerms(userId, projectId, isAdmin) {
   };
 }
 
+// ── getTeamPerms ──────────────────────────────────────────────────────────────
+// Returns the current user's default permissions for a team.
+// Admin always gets full access.
+async function getTeamPerms(userId, teamId, isAdmin) {
+  if (isAdmin) return { view: true, edit: true, create: true, delete: true };
+
+  const { rows } = await query(
+    `SELECT perm_view, perm_edit, perm_create, perm_delete
+       FROM team_members
+      WHERE team_id = $1 AND member_id = $2`,
+    [teamId, userId]
+  );
+
+  if (!rows.length) return { view: false, edit: false, create: false, delete: false };
+  const r = rows[0];
+  return {
+    view:   r.perm_view,
+    edit:   r.perm_edit,
+    create: r.perm_create,
+    delete: r.perm_delete,
+  };
+}
+
 // ── signToken ─────────────────────────────────────────────────────────────────
 function signToken(userId, isAdmin) {
   return jwt.sign({ userId, isAdmin }, JWT_SECRET, { expiresIn: '7d' });
@@ -72,4 +95,4 @@ function setCookie(res, token) {
   });
 }
 
-module.exports = { authenticate, requireAdmin, getProjectPerms, signToken, setCookie };
+module.exports = { authenticate, requireAdmin, getProjectPerms, getTeamPerms, signToken, setCookie };

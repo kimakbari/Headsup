@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { query, withTransaction } = require('../db');
-const { requireAdmin, getProjectPerms } = require('../middleware/auth');
+const { requireAdmin, getProjectPerms, getTeamPerms } = require('../middleware/auth');
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 async function calcTaskProgress(taskId) {
@@ -115,12 +115,17 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/projects  — create project (admin only)
-router.post('/', requireAdmin, async (req, res) => {
+// POST /api/projects  — create project (admin, or a team member with edit+create perms)
+router.post('/', async (req, res) => {
   try {
     const { teamId, title, deadline, description, members } = req.body;
     if (!teamId || !title?.trim()) {
       return res.status(400).json({ error: 'teamId and title are required' });
+    }
+
+    const teamPerms = await getTeamPerms(req.user.id, teamId, req.user.is_admin);
+    if (!(teamPerms.edit && teamPerms.create)) {
+      return res.status(403).json({ error: 'You need edit and create permission on this team to create a project' });
     }
 
     const result = await withTransaction(async (client) => {
