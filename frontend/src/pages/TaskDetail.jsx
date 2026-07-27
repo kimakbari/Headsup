@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Topbar from '../components/Topbar';
 import BlockedByModal from '../components/BlockedByModal';
 import { STATUSES, statusMeta, prioMeta, fmtDate, deadlineColor, timeAgo } from '../utils';
 import { useToast } from '../components/Toast';
 import api from '../api';
+
+// Matches an in-progress "@fragment" ending at the cursor, e.g. "hey @sar" → "sar"
+const MENTION_PATTERN = /(?:^|\s)@([^\s@]*)$/;
 
 export default function TaskDetail() {
   const { projectId, taskId } = useParams();
@@ -19,10 +22,21 @@ export default function TaskDetail() {
   const [showEdit, setShowEdit] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [blockerPrompt, setBlockerPrompt] = useState(false);
+  const [projectMembers, setProjectMembers] = useState([]);
+  const [mentionQuery, setMentionQuery] = useState(null); // string while the @ dropdown should show
+  const [mentionedIds, setMentionedIds] = useState([]);
+  const commentInputRef = useRef(null);
 
   const load = () => api.get(`/tasks/${taskId}`).then(r => setTask(r.data)).finally(() => setLoading(false));
 
   useEffect(() => { load(); }, [taskId]);
+
+  useEffect(() => {
+    api.get('/projects').then(r => {
+      const p = r.data.find(x => x.id === projectId);
+      setProjectMembers(p?.members || []);
+    }).catch(() => {});
+  }, [projectId]);
 
   const toggleSub = async (sub) => {
     if (!task?.perms?.edit) return;
@@ -88,14 +102,42 @@ export default function TaskDetail() {
     if (!newComment.trim() || posting) return;
     setPosting(true);
     try {
-      await api.post(`/tasks/${taskId}/comments`, { body: newComment.trim() });
+      await api.post(`/tasks/${taskId}/comments`, { body: newComment.trim(), mentionedIds });
       setNewComment('');
+      setMentionedIds([]);
+      setMentionQuery(null);
       load();
     } catch (err) {
       toast(err.response?.data?.error || 'Could not post comment');
     } finally {
       setPosting(false);
     }
+  };
+
+  const onCommentChange = (e) => {
+    const val = e.target.value;
+    setNewComment(val);
+    const uptoCursor = val.slice(0, e.target.selectionStart);
+    const match = uptoCursor.match(MENTION_PATTERN);
+    setMentionQuery(match ? match[1] : null);
+  };
+
+  const mentionMatches = mentionQuery !== null
+    ? projectMembers.filter(m => m.displayName.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6)
+    : [];
+
+  const pickMention = (m) => {
+    const input = commentInputRef.current;
+    const cursor = input ? input.selectionStart : newComment.length;
+    const before = newComment.slice(0, cursor).replace(MENTION_PATTERN, (match) => {
+      const leadingSpace = match.startsWith(' ') ? ' ' : '';
+      return `${leadingSpace}@${m.displayName} `;
+    });
+    const after = newComment.slice(cursor);
+    setNewComment(before + after);
+    setMentionedIds(ids => ids.includes(m.id) ? ids : [...ids, m.id]);
+    setMentionQuery(null);
+    setTimeout(() => input?.focus(), 0);
   };
 
   const onAttach = async (e) => {
@@ -452,27 +494,67 @@ export default function TaskDetail() {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            value={newComment}
-            onChange={e => setNewComment(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addComment()}
-            placeholder="Write a comment…"
-            style={{
-              flex: 1, padding: '10px 13px',
-              border: '1.5px solid var(--border)', borderRadius: 11,
-              fontSize: 13, fontWeight: 700, background: 'var(--card)', outline: 'none',
-              transition: 'border-color .15s',
-            }}
-            onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border)'}
-          />
-          <button onClick={addComment} disabled={posting || !newComment.trim()} style={{
-            background: 'var(--accent)', color: '#fff', border: 'none',
-            padding: '10px 18px', borderRadius: 11, fontWeight: 800, fontSize: 13,
-            cursor: posting || !newComment.trim() ? 'not-allowed' : 'pointer',
-            opacity: posting || !newComment.trim() ? .6 : 1,
-          }}>Post</button>
+        <div style={{ position: 'relative' }}>
+          {mentionMatches.length > 0 && (
+            <div style={{
+              position: 'absolute', bottom: '100%', left: 0, marginBottom: 6,
+              width: 220, maxHeight: 190, overflowY: 'auto',
+              background: 'var(--card)', border: '1.5px solid var(--border)',
+              borderRadius: 12, boxShadow: '0 12px 30px rgba(44,39,34,.18)',
+              zIndex: 20, padding: 6,
+            }}>
+              {mentionMatches.map(m => (
+                <div
+                  key={m.id}
+                  onMouseDown={e => { e.preventDefault(); pickMention(m); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 9,
+                    padding: '7px 8px', borderRadius: 9, cursor: 'pointer',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--inner-bg)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span style={{
+                    width: 24, height: 24, borderRadius: 7, flexShrink: 0,
+                    background: m.color, color: '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 800, fontSize: 10,
+                  }}>{m.initials}</span>
+                  <span style={{ fontWeight: 800, fontSize: 13 }}>{m.displayName}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              ref={commentInputRef}
+              value={newComment}
+              onChange={onCommentChange}
+              onKeyDown={e => e.key === 'Enter' && !mentionMatches.length && addComment()}
+              placeholder="Write a comment… use @ to mention someone"
+              style={{
+                flex: 1, padding: '10px 13px',
+                border: '1.5px solid var(--border)', borderRadius: 11,
+                fontSize: 13, fontWeight: 700, background: 'var(--card)', outline: 'none',
+                transition: 'border-color .15s',
+              }}
+              onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+            <button onClick={addComment} disabled={posting || !newComment.trim()} style={{
+              background: 'var(--accent)', color: '#fff', border: 'none',
+              padding: '10px 18px', borderRadius: 11, fontWeight: 800, fontSize: 13,
+              cursor: posting || !newComment.trim() ? 'not-allowed' : 'pointer',
+              opacity: posting || !newComment.trim() ? .6 : 1,
+            }}>Post</button>
+          </div>
+
+          {mentionedIds.length > 0 && (
+            <div style={{ marginTop: 8, fontWeight: 700, fontSize: 12, color: 'var(--text-3)' }}>
+              Will notify: {projectMembers.filter(m => mentionedIds.includes(m.id)).map(m => m.displayName).join(', ')}
+            </div>
+          )}
         </div>
       </div>
 

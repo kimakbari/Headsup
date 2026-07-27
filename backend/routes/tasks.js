@@ -381,7 +381,7 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/comments', async (req, res) => {
   try {
     const { id } = req.params;
-    const { body } = req.body;
+    const { body, mentionedIds } = req.body;
     if (!body?.trim()) return res.status(400).json({ error: 'Comment cannot be empty' });
 
     const { rows: task } = await query('SELECT * FROM tasks WHERE id = $1', [id]);
@@ -396,6 +396,24 @@ router.post('/:id/comments', async (req, res) => {
       [id, req.user.id, req.user.display_name, body.trim()]
     );
     const c = rows[0];
+
+    // Notify mentioned people — only those who can actually see this project, excluding self-mentions
+    const candidateIds = [...new Set(mentionedIds || [])].filter(mid => mid !== req.user.id);
+    if (candidateIds.length) {
+      const { rows: valid } = await query(
+        `SELECT id FROM members
+          WHERE id = ANY($1::uuid[])
+            AND (is_admin = TRUE OR id IN (SELECT member_id FROM project_members WHERE project_id = $2))`,
+        [candidateIds, task[0].project_id]
+      );
+      for (const v of valid) {
+        await query(
+          `INSERT INTO mentions (member_id, task_id, comment_id, actor_name) VALUES ($1,$2,$3,$4)`,
+          [v.id, id, c.id, req.user.display_name]
+        );
+      }
+    }
+
     res.status(201).json({
       id:             c.id,
       memberId:       c.member_id,

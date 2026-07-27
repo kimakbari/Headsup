@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { fmtDate, daysUntil } from '../utils';
+import { fmtDate, daysUntil, timeAgo } from '../utils';
 import HamburgerMenu from './HamburgerMenu';
 import Logo from './Logo';
 import api from '../api';
 
-// Dismissed notifications are tracked per-tab by a stable key (kind:id), so
+// Dismissed due-date notifications are tracked per-tab by a stable key (kind:id), so
 // closing one only affects that one — the badge count always reflects exactly
-// what's still visible in the banners/dropdown.
+// what's still visible in the banners/dropdown. Mentions are persisted server-side
+// instead (they have real "read" state in the database), so they don't need this.
 const STORAGE_KEY = 'hu_dismissed_notifs';
 const loadDismissed = () => {
   try { return new Set(JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]')); }
@@ -21,7 +22,9 @@ function urgencyStyle(n) {
   return { bg: '#FBF1DD', color: '#8A6A1E', border: '#F0DFB8' };
 }
 
-const goTo = n => n.kind === 'subtask'
+const goTo = n => n.kind === 'mention'
+  ? `/projects/${n.projectId}/tasks/${n.taskId}`
+  : n.kind === 'subtask'
   ? `/projects/${n.projectId}/tasks/${n.taskId}`
   : `/projects/${n.projectId}/tasks/${n.id}`;
 
@@ -32,6 +35,7 @@ export default function Topbar({ back, backLabel }) {
   const [bellOpen, setBellOpen]   = useState(false);
   const [tasksDue, setTasksDue]       = useState([]);
   const [subtasksDue, setSubtasksDue] = useState([]);
+  const [mentions, setMentions]       = useState([]);
   const [dismissed, setDismissed]     = useState(loadDismissed);
 
   useEffect(() => {
@@ -41,12 +45,18 @@ export default function Topbar({ back, backLabel }) {
         setSubtasksDue(r.data.subtasks || []);
       })
       .catch(() => {});
+    api.get('/mentions').then(r => setMentions(r.data || [])).catch(() => {});
   }, []);
 
-  const dismissOne = (key) => {
+  const dismissOne = (n) => {
+    if (n.kind === 'mention') {
+      setMentions(ms => ms.filter(m => m.id !== n.mentionId));
+      api.put(`/mentions/${n.mentionId}/read`).catch(() => {});
+      return;
+    }
     setDismissed(d => {
       const next = new Set(d);
-      next.add(key);
+      next.add(n.key);
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
       return next;
     });
@@ -54,7 +64,9 @@ export default function Topbar({ back, backLabel }) {
 
   const visibleTasks    = tasksDue.map(n => ({ ...n, kind: 'task', key: `t:${n.id}` })).filter(n => !dismissed.has(n.key));
   const visibleSubtasks = subtasksDue.map(n => ({ ...n, kind: 'subtask', key: `s:${n.id}` })).filter(n => !dismissed.has(n.key));
-  const allVisible      = [...visibleTasks, ...visibleSubtasks].sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+  const visibleMentions = mentions.map(n => ({ ...n, kind: 'mention', key: `m:${n.id}`, mentionId: n.id }));
+  const allVisible      = [...visibleTasks, ...visibleSubtasks, ...visibleMentions]
+    .sort((a, b) => new Date(a.deadline || a.createdAt) - new Date(b.deadline || b.createdAt));
 
   const taskOverdue    = visibleTasks.filter(n => n.overdue).length;
   const subtaskOverdue = visibleSubtasks.filter(n => n.overdue).length;
@@ -72,10 +84,14 @@ export default function Topbar({ back, backLabel }) {
       + (subtaskDueSoon ? ` · ${subtaskDueSoon} within 3 days` : '')
       + (subtaskOverdue ? ` · ${subtaskOverdue} overdue` : '')
     : null;
+  const mentionSummary = visibleMentions.length
+    ? `You were mentioned in ${visibleMentions.length} comment${visibleMentions.length !== 1 ? 's' : ''}`
+    : null;
 
   const banners = [
     { type: 'tasks',    summary: taskSummary,    items: visibleTasks },
     { type: 'subtasks', summary: subtaskSummary, items: visibleSubtasks },
+    { type: 'mentions', summary: mentionSummary, items: visibleMentions },
   ].filter(b => b.summary);
 
   const landingPath = user?.isAdmin ? '/home' : '/my-tasks';
@@ -167,14 +183,16 @@ export default function Topbar({ back, backLabel }) {
                       style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
                     >
                       <div style={{ fontWeight: 800, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {n.title}
+                        {n.kind === 'mention' ? `${n.actorName} mentioned you` : n.title}
                       </div>
                       <div style={{ fontWeight: 700, fontSize: 11, color: n.overdue ? '#C8472F' : 'var(--text-3)' }}>
-                        {n.kind === 'subtask' ? `${n.taskTitle} · ` : ''}{fmtDate(n.deadline)}{n.overdue ? ' · overdue' : ''}
+                        {n.kind === 'mention'
+                          ? `${n.taskTitle} · ${timeAgo(n.createdAt)}`
+                          : <>{n.kind === 'subtask' ? `${n.taskTitle} · ` : ''}{fmtDate(n.deadline)}{n.overdue ? ' · overdue' : ''}</>}
                       </div>
                     </div>
                     <button
-                      onClick={() => dismissOne(n.key)}
+                      onClick={() => dismissOne(n)}
                       title="Dismiss"
                       style={{
                         flexShrink: 0, width: 24, height: 24, borderRadius: 7,
@@ -231,19 +249,21 @@ export default function Topbar({ back, backLabel }) {
         </button>
       </div>
 
-      {/* Notification banners — one for tasks, one for subtasks; each item closes individually */}
+      {/* Notification banners — tasks / subtasks / mentions; each item closes individually */}
       {banners.map(b => (
         <div key={b.type} className="anim-fade" style={{
           display: 'flex', alignItems: 'flex-start', gap: 12,
           background: 'var(--banner-bg)', border: '1.5px solid var(--banner-border)',
           borderRadius: 14, padding: '13px 16px', margin: '0 0 12px',
         }}>
-          <span style={{ fontSize: 18, marginTop: 1 }}>⏰</span>
+          <span style={{ fontSize: 18, marginTop: 1 }}>{b.type === 'mentions' ? '💬' : '⏰'}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--banner-text)', marginBottom: 9 }}>{b.summary}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
               {b.items.map(n => {
-                const style = urgencyStyle(n);
+                const style = n.kind === 'mention'
+                  ? { bg: '#F2EEF8', color: '#7A5FA8', border: '#E0D3F0' }
+                  : urgencyStyle(n);
                 return (
                   <span
                     key={n.key}
@@ -257,17 +277,18 @@ export default function Topbar({ back, backLabel }) {
                   >
                     <span
                       onClick={() => navigate(goTo(n))}
-                      title={n.taskTitle ? `${n.title} — ${n.taskTitle}` : n.title}
+                      title={n.kind === 'mention' ? `${n.actorName} mentioned you — ${n.taskTitle}` : (n.taskTitle ? `${n.title} — ${n.taskTitle}` : n.title)}
                       style={{
                         cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap', maxWidth: 190,
                       }}
                     >
-                      {n.title}{n.taskTitle ? ` — ${n.taskTitle}` : ''}
-                      <span style={{ opacity: .8 }}> · {fmtDate(n.deadline)}</span>
+                      {n.kind === 'mention'
+                        ? <>{n.actorName} — {n.taskTitle}</>
+                        : <>{n.title}{n.taskTitle ? ` — ${n.taskTitle}` : ''}<span style={{ opacity: .8 }}> · {fmtDate(n.deadline)}</span></>}
                     </span>
                     <button
-                      onClick={() => dismissOne(n.key)}
+                      onClick={() => dismissOne(n)}
                       title="Dismiss"
                       style={{
                         flexShrink: 0, width: 17, height: 17, borderRadius: '50%',
