@@ -360,6 +360,49 @@ router.put('/:id/status', async (req, res) => {
   }
 });
 
+// PUT /api/tasks/:id/move  — move task to a different project on the same team
+router.put('/:id/move', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { projectId: newProjectId } = req.body;
+    if (!newProjectId) return res.status(400).json({ error: 'projectId is required' });
+
+    const { rows: existing } = await query('SELECT * FROM tasks WHERE id = $1', [id]);
+    if (!existing.length) return res.status(404).json({ error: 'Task not found' });
+    const oldProjectId = existing[0].project_id;
+    if (newProjectId === oldProjectId) return res.status(400).json({ error: 'Task is already in this project' });
+
+    const sourcePerms = await getProjectPerms(req.user.id, oldProjectId, req.user.is_admin);
+    if (!sourcePerms.edit) return res.status(403).json({ error: 'No edit permission on the current project' });
+
+    const destPerms = await getProjectPerms(req.user.id, newProjectId, req.user.is_admin);
+    if (!destPerms.create) return res.status(403).json({ error: 'No create permission on the destination project' });
+
+    const { rows: srcProject }  = await query('SELECT * FROM projects WHERE id = $1', [oldProjectId]);
+    const { rows: destProject } = await query('SELECT * FROM projects WHERE id = $1', [newProjectId]);
+    if (!destProject.length) return res.status(404).json({ error: 'Destination project not found' });
+    if (destProject[0].team_id !== srcProject[0].team_id) {
+      return res.status(400).json({ error: 'Can only move tasks between projects on the same team' });
+    }
+
+    await withTransaction(async (client) => {
+      await client.query('UPDATE tasks SET project_id = $1 WHERE id = $2', [newProjectId, id]);
+      // Owners and subtask assignees were chosen from the old project's roster and may not apply here
+      await client.query('DELETE FROM task_owners WHERE task_id = $1', [id]);
+      await client.query(
+        'DELETE FROM subtask_assignees WHERE subtask_id IN (SELECT id FROM subtasks WHERE task_id = $1)',
+        [id]
+      );
+      await logActivity(client, id, req.user, `moved this task to "${destProject[0].title}"`);
+    });
+
+    res.json({ ok: true, projectId: newProjectId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // DELETE /api/tasks/:id  — delete task
 router.delete('/:id', async (req, res) => {
   try {

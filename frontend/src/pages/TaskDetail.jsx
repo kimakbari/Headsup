@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Topbar from '../components/Topbar';
 import BlockedByModal from '../components/BlockedByModal';
+import MoveTaskModal from '../components/MoveTaskModal';
 import { STATUSES, statusMeta, prioMeta, fmtDate, deadlineColor, timeAgo } from '../utils';
 import { useToast } from '../components/Toast';
 import api from '../api';
@@ -23,8 +24,11 @@ export default function TaskDetail() {
   const [duplicating, setDuplicating] = useState(false);
   const [blockerPrompt, setBlockerPrompt] = useState(false);
   const [projectMembers, setProjectMembers] = useState([]);
+  const [teamProjects, setTeamProjects] = useState([]);
   const [mentionQuery, setMentionQuery] = useState(null); // string while the @ dropdown should show
   const [mentionedIds, setMentionedIds] = useState([]);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [moving, setMoving] = useState(false);
   const commentInputRef = useRef(null);
 
   const load = () => api.get(`/tasks/${taskId}`).then(r => setTask(r.data)).finally(() => setLoading(false));
@@ -35,6 +39,11 @@ export default function TaskDetail() {
     api.get('/projects').then(r => {
       const p = r.data.find(x => x.id === projectId);
       setProjectMembers(p?.members || []);
+      if (p?.teamId) {
+        api.get(`/projects?teamId=${p.teamId}`)
+          .then(r2 => setTeamProjects(r2.data.filter(tp => tp.id !== projectId)))
+          .catch(() => {});
+      }
     }).catch(() => {});
   }, [projectId]);
 
@@ -67,6 +76,20 @@ export default function TaskDetail() {
     await api.delete(`/tasks/${taskId}`);
     toast('Task deleted');
     navigate(`/projects/${projectId}/board`);
+  };
+
+  const moveTask = async (newProjectId) => {
+    setMoving(true);
+    try {
+      await api.put(`/tasks/${taskId}/move`, { projectId: newProjectId });
+      toast('Task moved');
+      navigate(`/projects/${newProjectId}/board`);
+    } catch (err) {
+      toast(err.response?.data?.error || 'Could not move task');
+    } finally {
+      setMoving(false);
+      setShowMoveModal(false);
+    }
   };
 
   const duplicateTask = async () => {
@@ -227,6 +250,16 @@ export default function TaskDetail() {
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
                 >{duplicating ? 'Duplicating…' : 'Duplicate'}</button>
+              )}
+              {task.perms?.edit && teamProjects.length > 0 && (
+                <button onClick={() => setShowMoveModal(true)} style={{
+                  background: 'var(--inner-bg)', border: '1.5px solid var(--border)',
+                  borderRadius: 11, padding: '9px 15px', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                  transition: 'border-color .15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                >Move to</button>
               )}
               {task.perms?.delete && (
                 <button onClick={deleteTask} style={{
@@ -562,6 +595,15 @@ export default function TaskDetail() {
         <BlockedByModal
           onCancel={() => setBlockerPrompt(false)}
           onConfirm={(team) => { changeStatus('pending', team); setBlockerPrompt(false); }}
+        />
+      )}
+
+      {showMoveModal && (
+        <MoveTaskModal
+          projects={teamProjects}
+          moving={moving}
+          onCancel={() => setShowMoveModal(false)}
+          onConfirm={moveTask}
         />
       )}
     </>
