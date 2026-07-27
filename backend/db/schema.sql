@@ -69,8 +69,16 @@ CREATE TABLE IF NOT EXISTS tasks (
   description TEXT,
   weighted    BOOLEAN      NOT NULL DEFAULT FALSE,
   blocked_by_team VARCHAR(100),
+  accountable_id UUID REFERENCES members(id) ON DELETE SET NULL,
+  responsible_id UUID REFERENCES members(id) ON DELETE SET NULL,
+  consulted_id   UUID REFERENCES members(id) ON DELETE SET NULL,
+  informed_id    UUID REFERENCES members(id) ON DELETE SET NULL,
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS accountable_id UUID REFERENCES members(id) ON DELETE SET NULL;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS responsible_id UUID REFERENCES members(id) ON DELETE SET NULL;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS consulted_id   UUID REFERENCES members(id) ON DELETE SET NULL;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS informed_id    UUID REFERENCES members(id) ON DELETE SET NULL;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS blocked_by_team VARCHAR(100);
 
 -- ─── Task owners (many-to-many; a task can have any number of owners) ─────────

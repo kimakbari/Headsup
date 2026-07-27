@@ -104,6 +104,10 @@ export default function TaskDetail() {
         priority:    task.priority,
         description: task.description || '',
         weighted:    task.weighted,
+        accountableId: task.accountable?.id || null,
+        responsibleId: task.responsible?.id || null,
+        consultedId:   task.consulted?.id || null,
+        informedId:    task.informed?.id || null,
         subtasks: task.subtasks?.map(s => ({
           title:       s.title,
           done:        false,
@@ -325,6 +329,31 @@ export default function TaskDetail() {
               </div>
             )}
           </div>
+
+          {/* RACI */}
+          {(task.accountable || task.responsible || task.consulted || task.informed) && (
+            <div style={{ display: 'flex', gap: 26, flexWrap: 'wrap', marginBottom: 22 }}>
+              {[
+                ['Accountable', task.accountable],
+                ['Responsible', task.responsible],
+                ['Consulted',   task.consulted],
+                ['Informed',    task.informed],
+              ].filter(([, m]) => m).map(([label, m]) => (
+                <div key={label}>
+                  <div style={metaLabel}>{label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{
+                      width: 24, height: 24, borderRadius: 7,
+                      background: m.color, color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 800, fontSize: 10,
+                    }}>{m.initials}</span>
+                    <span style={{ fontWeight: 800, fontSize: 13 }}>{m.displayName}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Subtasks */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>

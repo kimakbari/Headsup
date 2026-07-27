@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import Topbar from '../components/Topbar';
 import BlockedByModal from '../components/BlockedByModal';
+import MemberSearchSelect from '../components/MemberSearchSelect';
 import { STATUSES, statusMeta, prioMeta, fmtDate, deadlineColor } from '../utils';
 import { useToast } from '../components/Toast';
 import api from '../api';
@@ -76,6 +77,7 @@ function TaskCard({ task, onOpen, onDragStart }) {
 function TaskModal({ projectId, projectMembers, editTask, onClose, onSaved }) {
   const toast = useToast();
   const isEdit = !!editTask;
+  const [allMembers, setAllMembers] = useState([]);
   const [form, setForm] = useState({
     title:       editTask?.title || '',
     ownerIds:    editTask?.owners?.map(o => o.id) || [],
@@ -83,6 +85,10 @@ function TaskModal({ projectId, projectMembers, editTask, onClose, onSaved }) {
     priority:    editTask?.priority || 'Medium',
     description: editTask?.description || '',
     weighted:    editTask?.weighted || false,
+    accountableId: editTask?.accountable?.id || null,
+    responsibleId: editTask?.responsible?.id || null,
+    consultedId:   editTask?.consulted?.id || null,
+    informedId:    editTask?.informed?.id || null,
     subtasks:    editTask?.subtasks?.map(s => ({
                    ...s,
                    deadline:    s.deadline ? s.deadline.slice(0, 10) : '',
@@ -91,6 +97,10 @@ function TaskModal({ projectId, projectMembers, editTask, onClose, onSaved }) {
     error:       '',
   });
   const set = p => setForm(f => ({ ...f, ...p }));
+
+  useEffect(() => {
+    api.get('/members').then(r => setAllMembers(r.data)).catch(() => {});
+  }, []);
 
   const toggleOwner = id => set({
     ownerIds: form.ownerIds.includes(id)
@@ -231,6 +241,27 @@ function TaskModal({ projectId, projectMembers, editTask, onClose, onSaved }) {
               }}>{p}</button>
             );
           })}
+        </div>
+
+        {/* RACI */}
+        <label style={{ display: 'block', fontWeight: 800, fontSize: 13, marginBottom: 7, color: 'var(--text-2)' }}>RACI</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--text-3)', marginBottom: 5 }}>Accountable</div>
+            <MemberSearchSelect members={allMembers} value={form.accountableId} onChange={id => set({ accountableId: id })} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--text-3)', marginBottom: 5 }}>Responsible</div>
+            <MemberSearchSelect members={allMembers} value={form.responsibleId} onChange={id => set({ responsibleId: id })} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--text-3)', marginBottom: 5 }}>Consulted</div>
+            <MemberSearchSelect members={allMembers} value={form.consultedId} onChange={id => set({ consultedId: id })} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--text-3)', marginBottom: 5 }}>Informed</div>
+            <MemberSearchSelect members={allMembers} value={form.informedId} onChange={id => set({ informedId: id })} />
+          </div>
         </div>
 
         {/* Subtasks */}

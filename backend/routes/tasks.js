@@ -68,6 +68,16 @@ async function buildTask(row, userId, isAdmin) {
     [row.id]
   );
 
+  // RACI — Accountable / Responsible / Consulted / Informed, each a single member
+  const raciIds = [row.accountable_id, row.responsible_id, row.consulted_id, row.informed_id].filter(Boolean);
+  const { rows: raciRows } = raciIds.length
+    ? await query('SELECT id, display_name, initials, color FROM members WHERE id = ANY($1::uuid[])', [raciIds])
+    : { rows: [] };
+  const raciById = {};
+  raciRows.forEach(m => {
+    raciById[m.id] = { id: m.id, displayName: m.display_name, initials: m.initials, color: m.color };
+  });
+
   const progress = await calcProgress(row, subs);
   const perms    = await getProjectPerms(userId, row.project_id, isAdmin);
 
@@ -87,6 +97,10 @@ async function buildTask(row, userId, isAdmin) {
     description: row.description,
     weighted:    row.weighted,
     blockedByTeam: row.blocked_by_team,
+    accountable: raciById[row.accountable_id] || null,
+    responsible: raciById[row.responsible_id] || null,
+    consulted:   raciById[row.consulted_id] || null,
+    informed:    raciById[row.informed_id] || null,
     progress,
     perms,
     subtasks: subs.map(s => ({
@@ -204,7 +218,10 @@ router.get('/:id', async (req, res) => {
 // POST /api/tasks  — create task
 router.post('/', async (req, res) => {
   try {
-    const { projectId, title, ownerIds, deadline, priority, description, weighted, subtasks } = req.body;
+    const {
+      projectId, title, ownerIds, deadline, priority, description, weighted, subtasks,
+      accountableId, responsibleId, consultedId, informedId,
+    } = req.body;
     if (!projectId || !title?.trim()) return res.status(400).json({ error: 'projectId and title required' });
 
     const perms = await getProjectPerms(req.user.id, projectId, req.user.is_admin);
@@ -221,9 +238,11 @@ router.post('/', async (req, res) => {
 
     const result = await withTransaction(async (client) => {
       const { rows } = await client.query(
-        `INSERT INTO tasks (project_id, title, deadline, priority, description, weighted)
-         VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-        [projectId, title.trim(), deadline || null, priority || 'Medium', description?.trim() || null, !!weighted]
+        `INSERT INTO tasks (project_id, title, deadline, priority, description, weighted,
+                             accountable_id, responsible_id, consulted_id, informed_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        [projectId, title.trim(), deadline || null, priority || 'Medium', description?.trim() || null, !!weighted,
+         accountableId || null, responsibleId || null, consultedId || null, informedId || null]
       );
       const task = rows[0];
 
@@ -271,7 +290,10 @@ router.put('/:id', async (req, res) => {
     const perms = await getProjectPerms(req.user.id, existing[0].project_id, req.user.is_admin);
     if (!perms.edit) return res.status(403).json({ error: 'No edit permission' });
 
-    const { title, ownerIds, deadline, priority, description, weighted, subtasks } = req.body;
+    const {
+      title, ownerIds, deadline, priority, description, weighted, subtasks,
+      accountableId, responsibleId, consultedId, informedId,
+    } = req.body;
 
     const subs = subtasks || [];
     if (weighted && subs.length) {
@@ -283,8 +305,11 @@ router.put('/:id', async (req, res) => {
 
     await withTransaction(async (client) => {
       await client.query(
-        `UPDATE tasks SET title=$1, deadline=$2, priority=$3, description=$4, weighted=$5 WHERE id=$6`,
-        [title.trim(), deadline || null, priority, description?.trim() || null, !!weighted, id]
+        `UPDATE tasks SET title=$1, deadline=$2, priority=$3, description=$4, weighted=$5,
+                           accountable_id=$6, responsible_id=$7, consulted_id=$8, informed_id=$9
+          WHERE id=$10`,
+        [title.trim(), deadline || null, priority, description?.trim() || null, !!weighted,
+         accountableId || null, responsibleId || null, consultedId || null, informedId || null, id]
       );
 
       await client.query('DELETE FROM task_owners WHERE task_id = $1', [id]);
