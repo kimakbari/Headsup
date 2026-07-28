@@ -8,8 +8,9 @@ import api from '../api';
 
 // Dismissed due-date notifications are tracked per-tab by a stable key (kind:id), so
 // closing one only affects that one — the badge count always reflects exactly
-// what's still visible in the banners/dropdown. Mentions are persisted server-side
-// instead (they have real "read" state in the database), so they don't need this.
+// what's still visible in the banners/dropdown. Mentions and task-update pings are
+// persisted server-side instead (they have real "read" state in the database), so
+// they don't need this.
 const STORAGE_KEY = 'hu_dismissed_notifs';
 const loadDismissed = () => {
   try { return new Set(JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]')); }
@@ -22,9 +23,9 @@ function urgencyStyle(n) {
   return { bg: '#FBF1DD', color: '#8A6A1E', border: '#F0DFB8' };
 }
 
-const goTo = n => n.kind === 'mention'
-  ? `/projects/${n.projectId}/tasks/${n.taskId}`
-  : n.kind === 'subtask'
+const isPersisted = kind => kind === 'mention' || kind === 'task_update';
+
+const goTo = n => (n.kind === 'subtask' || isPersisted(n.kind))
   ? `/projects/${n.projectId}/tasks/${n.taskId}`
   : `/projects/${n.projectId}/tasks/${n.id}`;
 
@@ -35,7 +36,7 @@ export default function Topbar({ back, backLabel }) {
   const [bellOpen, setBellOpen]   = useState(false);
   const [tasksDue, setTasksDue]       = useState([]);
   const [subtasksDue, setSubtasksDue] = useState([]);
-  const [mentions, setMentions]       = useState([]);
+  const [notifs, setNotifs]           = useState([]); // mentions + task_update, from /api/notifications
   const [dismissed, setDismissed]     = useState(loadDismissed);
 
   useEffect(() => {
@@ -45,13 +46,13 @@ export default function Topbar({ back, backLabel }) {
         setSubtasksDue(r.data.subtasks || []);
       })
       .catch(() => {});
-    api.get('/mentions').then(r => setMentions(r.data || [])).catch(() => {});
+    api.get('/notifications').then(r => setNotifs(r.data || [])).catch(() => {});
   }, []);
 
   const dismissOne = (n) => {
-    if (n.kind === 'mention') {
-      setMentions(ms => ms.filter(m => m.id !== n.mentionId));
-      api.put(`/mentions/${n.mentionId}/read`).catch(() => {});
+    if (isPersisted(n.kind)) {
+      setNotifs(ns => ns.filter(x => x.id !== n.notifId));
+      api.put(`/notifications/${n.notifId}/read`).catch(() => {});
       return;
     }
     setDismissed(d => {
@@ -62,10 +63,11 @@ export default function Topbar({ back, backLabel }) {
     });
   };
 
-  const visibleTasks    = tasksDue.map(n => ({ ...n, kind: 'task', key: `t:${n.id}` })).filter(n => !dismissed.has(n.key));
-  const visibleSubtasks = subtasksDue.map(n => ({ ...n, kind: 'subtask', key: `s:${n.id}` })).filter(n => !dismissed.has(n.key));
-  const visibleMentions = mentions.map(n => ({ ...n, kind: 'mention', key: `m:${n.id}`, mentionId: n.id }));
-  const allVisible      = [...visibleTasks, ...visibleSubtasks, ...visibleMentions]
+  const visibleTasks      = tasksDue.map(n => ({ ...n, kind: 'task', key: `t:${n.id}` })).filter(n => !dismissed.has(n.key));
+  const visibleSubtasks   = subtasksDue.map(n => ({ ...n, kind: 'subtask', key: `s:${n.id}` })).filter(n => !dismissed.has(n.key));
+  const visibleMentions   = notifs.filter(n => n.type === 'mention').map(n => ({ ...n, kind: 'mention', key: `m:${n.id}`, notifId: n.id }));
+  const visibleTaskUpdates = notifs.filter(n => n.type === 'task_update').map(n => ({ ...n, kind: 'task_update', key: `u:${n.id}`, notifId: n.id }));
+  const allVisible      = [...visibleTasks, ...visibleSubtasks, ...visibleMentions, ...visibleTaskUpdates]
     .sort((a, b) => new Date(a.deadline || a.createdAt) - new Date(b.deadline || b.createdAt));
 
   const taskOverdue    = visibleTasks.filter(n => n.overdue).length;
@@ -87,11 +89,15 @@ export default function Topbar({ back, backLabel }) {
   const mentionSummary = visibleMentions.length
     ? `You were mentioned in ${visibleMentions.length} comment${visibleMentions.length !== 1 ? 's' : ''}`
     : null;
+  const taskUpdateSummary = visibleTaskUpdates.length
+    ? `${visibleTaskUpdates.length} update${visibleTaskUpdates.length !== 1 ? 's' : ''} on tasks you're Informed on`
+    : null;
 
   const banners = [
-    { type: 'tasks',    summary: taskSummary,    items: visibleTasks },
-    { type: 'subtasks', summary: subtaskSummary, items: visibleSubtasks },
-    { type: 'mentions', summary: mentionSummary, items: visibleMentions },
+    { type: 'tasks',       summary: taskSummary,       items: visibleTasks },
+    { type: 'subtasks',    summary: subtaskSummary,    items: visibleSubtasks },
+    { type: 'mentions',    summary: mentionSummary,    items: visibleMentions },
+    { type: 'taskUpdates', summary: taskUpdateSummary, items: visibleTaskUpdates },
   ].filter(b => b.summary);
 
   const landingPath = user?.isAdmin ? '/home' : '/my-tasks';
@@ -183,10 +189,12 @@ export default function Topbar({ back, backLabel }) {
                       style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
                     >
                       <div style={{ fontWeight: 800, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {n.kind === 'mention' ? `${n.actorName} mentioned you` : n.title}
+                        {n.kind === 'mention' ? `${n.actorName} mentioned you`
+                          : n.kind === 'task_update' ? `${n.actorName} ${n.note}`
+                          : n.title}
                       </div>
                       <div style={{ fontWeight: 700, fontSize: 11, color: n.overdue ? '#C8472F' : 'var(--text-3)' }}>
-                        {n.kind === 'mention'
+                        {isPersisted(n.kind)
                           ? `${n.taskTitle} · ${timeAgo(n.createdAt)}`
                           : <>{n.kind === 'subtask' ? `${n.taskTitle} · ` : ''}{fmtDate(n.deadline)}{n.overdue ? ' · overdue' : ''}</>}
                       </div>
@@ -256,12 +264,12 @@ export default function Topbar({ back, backLabel }) {
           background: 'var(--banner-bg)', border: '1.5px solid var(--banner-border)',
           borderRadius: 14, padding: '13px 16px', margin: '0 0 12px',
         }}>
-          <span style={{ fontSize: 18, marginTop: 1 }}>{b.type === 'mentions' ? '💬' : '⏰'}</span>
+          <span style={{ fontSize: 18, marginTop: 1 }}>{b.type === 'mentions' ? '💬' : b.type === 'taskUpdates' ? '🔄' : '⏰'}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--banner-text)', marginBottom: 9 }}>{b.summary}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
               {b.items.map(n => {
-                const style = n.kind === 'mention'
+                const style = isPersisted(n.kind)
                   ? { bg: '#F2EEF8', color: '#7A5FA8', border: '#E0D3F0' }
                   : urgencyStyle(n);
                 return (
@@ -277,7 +285,9 @@ export default function Topbar({ back, backLabel }) {
                   >
                     <span
                       onClick={() => navigate(goTo(n))}
-                      title={n.kind === 'mention' ? `${n.actorName} mentioned you — ${n.taskTitle}` : (n.taskTitle ? `${n.title} — ${n.taskTitle}` : n.title)}
+                      title={n.kind === 'mention' ? `${n.actorName} mentioned you — ${n.taskTitle}`
+                        : n.kind === 'task_update' ? `${n.actorName} ${n.note} — ${n.taskTitle}`
+                        : (n.taskTitle ? `${n.title} — ${n.taskTitle}` : n.title)}
                       style={{
                         cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap', maxWidth: 190,
@@ -285,6 +295,8 @@ export default function Topbar({ back, backLabel }) {
                     >
                       {n.kind === 'mention'
                         ? <>{n.actorName} — {n.taskTitle}</>
+                        : n.kind === 'task_update'
+                        ? <>{n.actorName} {n.note}</>
                         : <>{n.title}{n.taskTitle ? ` — ${n.taskTitle}` : ''}<span style={{ opacity: .8 }}> · {fmtDate(n.deadline)}</span></>}
                     </span>
                     <button

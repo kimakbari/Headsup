@@ -10,7 +10,7 @@ const teamRoutes    = require('./routes/teams');
 const projectRoutes = require('./routes/projects');
 const taskRoutes    = require('./routes/tasks');
 const uploadRoutes  = require('./routes/uploads');
-const mentionRoutes = require('./routes/mentions');
+const notificationRoutes = require('./routes/notifications');
 const { authenticate } = require('./middleware/auth');
 
 const app = express();
@@ -41,7 +41,7 @@ app.use('/api/teams',    authenticate, teamRoutes);           // protected
 app.use('/api/projects', authenticate, projectRoutes);        // protected
 app.use('/api/tasks',    authenticate, taskRoutes);           // protected
 app.use('/api/uploads',  authenticate, uploadRoutes);         // protected
-app.use('/api/mentions', authenticate, mentionRoutes);        // protected
+app.use('/api/notifications', authenticate, notificationRoutes); // protected
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ ok: true }));

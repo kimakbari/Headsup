@@ -137,13 +137,15 @@ CREATE TABLE IF NOT EXISTS task_comments (
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- ─── Mentions (@mention notifications from task comments) ────────────────────
-CREATE TABLE IF NOT EXISTS mentions (
+-- ─── Notifications (@mentions from comments + task-update pings for Informed) ─
+CREATE TABLE IF NOT EXISTS notifications (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   member_id   UUID         NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  type        VARCHAR(30)  NOT NULL CHECK (type IN ('mention', 'task_update')),
   task_id     UUID         NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   comment_id  UUID         REFERENCES task_comments(id) ON DELETE CASCADE,
   actor_name  VARCHAR(100) NOT NULL,
+  note        TEXT,
   is_read     BOOLEAN      NOT NULL DEFAULT FALSE,
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
@@ -158,5 +160,5 @@ CREATE INDEX IF NOT EXISTS idx_subtask_assignees_member  ON subtask_assignees(me
 CREATE INDEX IF NOT EXISTS idx_attachments_task ON attachments(task_id);
 CREATE INDEX IF NOT EXISTS idx_activity_task    ON activity_log(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_comments_task ON task_comments(task_id);
-CREATE INDEX IF NOT EXISTS idx_mentions_member ON mentions(member_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_member ON notifications(member_id);
 CREATE INDEX IF NOT EXISTS idx_projects_team    ON projects(team_id);

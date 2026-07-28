@@ -27,6 +27,17 @@ async function logActivity(client, taskId, member, action) {
   );
 }
 
+// Pings the current Informed person whenever the task changes — skips if there's
+// no one Informed, or if the person making the change is the Informed person themself.
+async function notifyInformed(client, informedId, taskId, actor, note) {
+  if (!informedId || informedId === actor.id) return;
+  await client.query(
+    `INSERT INTO notifications (member_id, type, task_id, actor_name, note)
+     VALUES ($1,'task_update',$2,$3,$4)`,
+    [informedId, taskId, actor.display_name, note]
+  );
+}
+
 async function buildTask(row, userId, isAdmin) {
   const { rows: subs } = await query(
     'SELECT * FROM subtasks WHERE task_id = $1 ORDER BY position, created_at', [row.id]
@@ -269,6 +280,7 @@ router.post('/', async (req, res) => {
       }
 
       await logActivity(client, task.id, req.user, 'created this task');
+      await notifyInformed(client, task.informed_id, task.id, req.user, 'created this task and set you as Informed');
       return task;
     });
 
@@ -337,6 +349,7 @@ router.put('/:id', async (req, res) => {
       }
 
       await logActivity(client, id, req.user, 'edited this task');
+      await notifyInformed(client, informedId || null, id, req.user, 'updated this task');
     });
 
     const { rows } = await query('SELECT * FROM tasks WHERE id = $1', [id]);
@@ -374,8 +387,9 @@ router.put('/:id/status', async (req, res) => {
 
     await withTransaction(async (client) => {
       await client.query('UPDATE tasks SET status=$1, blocked_by_team=$2 WHERE id=$3', [status, teamForColumn, id]);
-      const note = status === 'pending' ? ` (blocked by ${teamForColumn})` : '';
-      await logActivity(client, id, req.user, `moved this to ${statusLabels[status]}${note}`);
+      const blockedNote = status === 'pending' ? ` (blocked by ${teamForColumn})` : '';
+      await logActivity(client, id, req.user, `moved this to ${statusLabels[status]}${blockedNote}`);
+      await notifyInformed(client, existing[0].informed_id, id, req.user, `changed the status to ${statusLabels[status]}`);
     });
 
     res.json({ ok: true, status, blockedByTeam: teamForColumn });
@@ -419,6 +433,7 @@ router.put('/:id/move', async (req, res) => {
         [id]
       );
       await logActivity(client, id, req.user, `moved this task to "${destProject[0].title}"`);
+      await notifyInformed(client, existing[0].informed_id, id, req.user, `moved this task to "${destProject[0].title}"`);
     });
 
     res.json({ ok: true, projectId: newProjectId });
@@ -476,7 +491,7 @@ router.post('/:id/comments', async (req, res) => {
       );
       for (const v of valid) {
         await query(
-          `INSERT INTO mentions (member_id, task_id, comment_id, actor_name) VALUES ($1,$2,$3,$4)`,
+          `INSERT INTO notifications (member_id, type, task_id, comment_id, actor_name) VALUES ($1,'mention',$2,$3,$4)`,
           [v.id, id, c.id, req.user.display_name]
         );
       }
