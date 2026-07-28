@@ -23,7 +23,7 @@ export default function TaskDetail() {
   const [showEdit, setShowEdit] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [blockerPrompt, setBlockerPrompt] = useState(false);
-  const [projectMembers, setProjectMembers] = useState([]);
+  const [allMembers, setAllMembers] = useState([]);
   const [teamProjects, setTeamProjects] = useState([]);
   const [mentionQuery, setMentionQuery] = useState(null); // string while the @ dropdown should show
   const [mentionedIds, setMentionedIds] = useState([]);
@@ -38,13 +38,13 @@ export default function TaskDetail() {
   useEffect(() => {
     api.get('/projects').then(r => {
       const p = r.data.find(x => x.id === projectId);
-      setProjectMembers(p?.members || []);
       if (p?.teamId) {
         api.get(`/projects?teamId=${p.teamId}`)
           .then(r2 => setTeamProjects(r2.data.filter(tp => tp.id !== projectId)))
           .catch(() => {});
       }
     }).catch(() => {});
+    api.get('/members').then(r => setAllMembers(r.data)).catch(() => {});
   }, [projectId]);
 
   const toggleSub = async (sub) => {
@@ -150,7 +150,7 @@ export default function TaskDetail() {
   };
 
   const mentionMatches = mentionQuery !== null
-    ? projectMembers.filter(m => m.displayName.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6)
+    ? allMembers.filter(m => m.displayName.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6)
     : [];
 
   const pickMention = (m) => {
@@ -614,7 +614,7 @@ export default function TaskDetail() {
 
           {mentionedIds.length > 0 && (
             <div style={{ marginTop: 8, fontWeight: 700, fontSize: 12, color: 'var(--text-3)' }}>
-              Will notify: {projectMembers.filter(m => mentionedIds.includes(m.id)).map(m => m.displayName).join(', ')}
+              Will notify: {allMembers.filter(m => mentionedIds.includes(m.id)).map(m => m.displayName).join(', ')}
             </div>
           )}
         </div>

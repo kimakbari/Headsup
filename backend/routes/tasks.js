@@ -480,14 +480,12 @@ router.post('/:id/comments', async (req, res) => {
     );
     const c = rows[0];
 
-    // Notify mentioned people — only those who can actually see this project, excluding self-mentions
+    // Notify mentioned people — anyone in the app can be mentioned, excluding self-mentions
     const candidateIds = [...new Set(mentionedIds || [])].filter(mid => mid !== req.user.id);
     if (candidateIds.length) {
       const { rows: valid } = await query(
-        `SELECT id FROM members
-          WHERE id = ANY($1::uuid[])
-            AND (is_admin = TRUE OR id IN (SELECT member_id FROM project_members WHERE project_id = $2))`,
-        [candidateIds, task[0].project_id]
+        `SELECT id FROM members WHERE id = ANY($1::uuid[])`,
+        [candidateIds]
       );
       for (const v of valid) {
         await query(
