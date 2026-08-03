@@ -77,7 +77,7 @@ export default function TeamProjects() {
             onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 14px 30px rgba(44,39,34,.09)'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
           >
-            {user?.isAdmin && (
+            {(user?.isAdmin || p.perms?.edit) && (
               <button
                 onClick={e => { e.stopPropagation(); navigate(`/projects/${p.id}/edit`); }}
                 title="Edit project"
@@ -97,7 +97,7 @@ export default function TeamProjects() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <ProgressRing pct={p.progress} size={56} r={24} stroke={6} />
               <div>
-                <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-.3px', lineHeight: 1.2, paddingRight: user?.isAdmin ? 34 : 0 }}>{p.title}</div>
+                <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-.3px', lineHeight: 1.2, paddingRight: (user?.isAdmin || p.perms?.edit) ? 34 : 0 }}>{p.title}</div>
                 <div style={{ color: deadlineColor(p.deadline, ''), fontWeight: 800, fontSize: 12, marginTop: 4 }}>
                   📅 Due {fmtDate(p.deadline)}
                 </div>

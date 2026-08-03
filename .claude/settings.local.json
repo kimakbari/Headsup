@@ -6,7 +6,13 @@
       "Bash(curl -s http://localhost:3001/api/health)",
       "Bash(node -e ' *)",
       "Bash(pkill -f \"node server.js\")",
-      "Bash(rm -f /tmp/server_test5.log)"
+      "Bash(rm -f /tmp/server_test5.log)",
+      "Bash(ssh -o ConnectTimeout=8 -o BatchMode=yes root@89.44.241.66 \"echo connected && cd /var/www/kaputi && git log -1 --oneline && git status --short | head -5 && pm2 list\")",
+      "Bash(grep -rn \"api.delete\\(\\\\`/projects\" /Users/kimiaaliakbari/Desktop/kaputi/frontend/src)",
+      "Bash(rm -f /tmp/sarah_ck.txt)",
+      "Bash(curl -s -c /tmp/sarah_ck.txt -X POST http://localhost:3001/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"sarah.golshahi\",\"password\":\"temp_test_pw_12345\"}' -w '\\\\nHTTP:%{http_code}\\\\n')",
+      "Bash(curl -s -b /tmp/sarah_ck.txt -X PUT http://localhost:3001/api/projects/e7553f27-6c00-408e-a6e5-683538e62827 -H 'Content-Type: application/json' -d '{\"title\":\"TEMP EDIT-PERM TEST \\(edited by Sarah\\)\",\"deadline\":\"2026-12-01\",\"description\":\"edited via non-admin edit perm\"}' -w '\\\\nHTTP:%{http_code}\\\\n')",
+      "Bash(rm -f /tmp/sarah_ck.txt /tmp/amin_ck.txt /tmp/server_test6.log /tmp/sarah_hash_backup.txt)"
     ]
   }
 }

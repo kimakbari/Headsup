@@ -167,11 +167,14 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT /api/projects/:id  — update project (admin only)
-router.put('/:id', requireAdmin, async (req, res) => {
+// PUT /api/projects/:id  — update project (admin, or a member with edit permission on it)
+router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { title, deadline, description, members } = req.body;
+
+    const perms = await getProjectPerms(req.user.id, id, req.user.is_admin);
+    if (!perms.edit) return res.status(403).json({ error: 'No edit permission' });
 
     await withTransaction(async (client) => {
       await client.query(
