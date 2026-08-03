@@ -59,7 +59,7 @@ export default function App() {
         <Route path="/teams/:teamId/projects"   element={<TeamProjects />} />
         {/* Create is admin OR a team member with edit+create perms — checked inside ProjectForm */}
         <Route path="/teams/:teamId/projects/new" element={<ProjectForm />} />
-        <Route path="/projects/:projectId/edit" element={<AdminOnly><ProjectForm /></AdminOnly>} />
+        <Route path="/projects/:projectId/edit" element={<ProjectForm />} />
 
         {/* Board */}
         <Route path="/projects/:projectId/board"       element={<Board />} />

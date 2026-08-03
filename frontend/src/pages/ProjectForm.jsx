@@ -36,6 +36,7 @@ export default function ProjectForm() {
   const [error, setError]     = useState('');
   const [saving, setSaving]   = useState(false);
   const [loading, setLoading] = useState(isEdit);
+  const [projectPerms, setProjectPerms] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -55,6 +56,7 @@ export default function ProjectForm() {
           deadline:    project.deadline ? project.deadline.slice(0, 10) : '',
           description: project.description || '',
         });
+        setProjectPerms(project.perms);
       }
 
       if (t) {
@@ -156,6 +158,19 @@ export default function ProjectForm() {
         border: '1px dashed var(--border-2)', borderRadius: 18, padding: 40,
       }}>
         You need both Edit and Create permission on this team to create a project.
+      </div>
+    </>
+  );
+
+  if (isEdit && !user?.isAdmin && !projectPerms?.edit) return (
+    <>
+      <Topbar back={`/teams/${teamId}/projects`} backLabel="Projects" />
+      <div style={{
+        maxWidth: 480, margin: '60px auto 0', textAlign: 'center',
+        color: 'var(--text-3)', fontWeight: 800, background: 'var(--card)',
+        border: '1px dashed var(--border-2)', borderRadius: 18, padding: 40,
+      }}>
+        You need edit permission on this project to make changes.
       </div>
     </>
   );
