@@ -44,10 +44,19 @@ router.get('/', async (req, res) => {
         );
         projectRows = rows;
       } else {
+        // A team member with edit+create permission can create projects for this team,
+        // so they already have full access to every project under it — no explicit
+        // project_members row required.
         const { rows } = await query(
           `SELECT p.* FROM projects p
-             JOIN project_members pm ON pm.project_id = p.id
-            WHERE p.team_id = $1 AND pm.member_id = $2 AND pm.perm_view = TRUE
+            WHERE p.team_id = $1
+              AND (
+                p.id IN (SELECT project_id FROM project_members WHERE member_id = $2 AND perm_view = TRUE)
+                OR EXISTS (
+                  SELECT 1 FROM team_members tm
+                   WHERE tm.team_id = $1 AND tm.member_id = $2 AND tm.perm_edit = TRUE AND tm.perm_create = TRUE
+                )
+              )
             ORDER BY p.created_at DESC`,
           [teamId, user.id]
         );
@@ -60,8 +69,11 @@ router.get('/', async (req, res) => {
       } else {
         const { rows } = await query(
           `SELECT p.* FROM projects p
-             JOIN project_members pm ON pm.project_id = p.id
-            WHERE pm.member_id = $1 AND pm.perm_view = TRUE
+            WHERE p.id IN (SELECT project_id FROM project_members WHERE member_id = $1 AND perm_view = TRUE)
+               OR p.team_id IN (
+                 SELECT team_id FROM team_members
+                  WHERE member_id = $1 AND perm_edit = TRUE AND perm_create = TRUE
+               )
             ORDER BY p.created_at DESC`,
           [user.id]
         );

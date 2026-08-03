@@ -58,14 +58,17 @@ export default function ProjectForm() {
       }
 
       if (t) {
-        // roster = team members mapped to full member info
+        // roster = team members mapped to full member info, excluding members who
+        // already have edit+create permission on the team — they can create projects
+        // themselves, so they already have full access to every project on this team.
         const allMembers = membersRes.data;
-        const teamMemberIds = t.members.map(m => m.id);
+        const creatorIds = new Set(t.members.filter(tm => tm.perms.edit && tm.perms.create).map(tm => tm.id));
+        const teamMemberIds = t.members.map(m => m.id).filter(id => !creatorIds.has(id));
         const ros = allMembers.filter(m => teamMemberIds.includes(m.id));
         setRoster(ros);
 
         const p = {};
-        t.members.forEach(tm => {
+        t.members.filter(tm => !creatorIds.has(tm.id)).forEach(tm => {
           const existing = project?.members.find(pm => pm.id === tm.id);
           p[tm.id] = existing
             ? { selected: true, ...existing.perms }
@@ -100,7 +103,7 @@ export default function ProjectForm() {
     if (!form.title.trim()) { setError('Give the project a title.'); return; }
     if (!form.deadline)     { setError('Pick a deadline.'); return; }
     const chosen = roster.filter(m => picks[m.id]?.selected);
-    if (!chosen.length) { setError('Add at least one member.'); return; }
+    if (roster.length > 0 && !chosen.length) { setError('Add at least one member.'); return; }
 
     setSaving(true);
     setError('');

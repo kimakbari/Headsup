@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Topbar from '../components/Topbar';
-import { fmtDate, deadlineColor, prioMeta, statusMeta } from '../utils';
+import { STATUSES, fmtDate, deadlineColor, prioMeta, statusMeta } from '../utils';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
 
@@ -14,6 +14,7 @@ export default function MyTasks() {
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy]   = useState('deadline'); // 'deadline' | 'priority'
   const [search, setSearch]   = useState('');
+  const [layout, setLayout]   = useState('list'); // 'list' | 'board'
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -94,6 +95,146 @@ export default function MyTasks() {
       : (deadlineDiff || priorityDiff);
   });
 
+  const columns = STATUSES.map(s => ({ ...s, cards: sorted.filter(it => it.status === s.key) }));
+
+  const renderCard = (it) => {
+    const pm = prioMeta(it.priority);
+    const sm = statusMeta(it.status);
+
+    // ── Subtask-level card ──
+    if (it.kind === 'subtask') {
+      return (
+        <div
+          key={it.id}
+          onClick={() => navigate(`/projects/${it.projectId}/tasks/${it.taskId}`)}
+          className="anim-pop"
+          style={{
+            background: 'var(--card)', border: '1px solid var(--border-2)',
+            borderRadius: 16, boxShadow: 'var(--shadow-sm)',
+            padding: 15, cursor: 'pointer', transition: 'transform .15s, box-shadow .15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(44,39,34,.09)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
+        >
+          <div
+            onClick={e => { e.stopPropagation(); navigate(`/projects/${it.projectId}/board`); }}
+            style={{ fontWeight: 800, fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}
+          >
+            {it.project.title}
+          </div>
+          <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--text-4)', marginBottom: 9 }}>
+            ↳ {it.taskTitle}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'start' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <span
+                onClick={e => { e.stopPropagation(); toggleSubtaskDone(it.taskId, it.subtaskId, it.done); }}
+                style={{
+                  width: 22, height: 22, borderRadius: 7, flexShrink: 0,
+                  border: `2px solid ${it.done ? sm.color : 'var(--checkbox-border)'}`,
+                  background: it.done ? sm.color : 'var(--card)',
+                  color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, fontWeight: 900, cursor: 'pointer',
+                }}
+              >{it.done ? '✓' : ''}</span>
+              <span style={{
+                fontWeight: 800, fontSize: 15, lineHeight: 1.25,
+                color: it.done ? 'var(--text-3)' : 'var(--text)',
+                textDecoration: it.done ? 'line-through' : 'none',
+              }}>{it.title}</span>
+            </span>
+            <span style={{
+              flexShrink: 0, fontWeight: 800, fontSize: 11,
+              padding: '3px 9px', borderRadius: 999,
+              color: pm.color, background: pm.bg,
+            }}>{it.priority}</span>
+          </div>
+
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--divider)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 800, fontSize: 12, color: it.deadline ? deadlineColor(it.deadline, it.done ? 'done' : '') : 'var(--text-4)' }}>
+              {it.deadline ? `📅 ${fmtDate(it.deadline)}` : 'No deadline'}
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: sm.color }} />
+              <span style={{ fontWeight: 800, fontSize: 12, color: 'var(--text-2)' }}>{sm.label}</span>
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Task-level card (fallback when a task has no subtasks assigned to me,
+    //     or when browsing "My projects") ──
+    const done  = it.subtasks?.filter(s => s.done).length || 0;
+    const total = it.subtasks?.length || 0;
+    return (
+      <div
+        key={it.id}
+        onClick={() => navigate(`/projects/${it.projectId}/tasks/${it.id}`)}
+        className="anim-pop"
+        style={{
+          background: 'var(--card)', border: '1px solid var(--border-2)',
+          borderRadius: 16, boxShadow: 'var(--shadow-sm)',
+          padding: 15, cursor: 'pointer', transition: 'transform .15s, box-shadow .15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(44,39,34,.09)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
+      >
+        <div
+          onClick={e => { e.stopPropagation(); navigate(`/projects/${it.projectId}/board`); }}
+          style={{ fontWeight: 800, fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}
+        >
+          {it.project.title}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'start' }}>
+          <span style={{ fontWeight: 800, fontSize: 15, lineHeight: 1.25 }}>{it.title}</span>
+          <span style={{
+            flexShrink: 0, fontWeight: 800, fontSize: 11,
+            padding: '3px 9px', borderRadius: 999,
+            color: pm.color, background: pm.bg,
+          }}>{it.priority}</span>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ margin: '12px 0 8px', height: 8, borderRadius: 999, background: 'var(--inner-border)', overflow: 'hidden' }}>
+          <div style={{ height: '100%', borderRadius: 999, background: sm.color, width: `${it.progress}%`, transition: 'width .3s' }} />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontWeight: 800, fontSize: 12, color: deadlineColor(it.deadline, it.status) }}>
+            📅 {fmtDate(it.deadline)}
+          </span>
+          <span style={{ fontWeight: 800, fontSize: 12, color: 'var(--text-3)' }}>
+            {done}/{total} subtasks
+          </span>
+        </div>
+
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--divider)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 7 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: sm.color }} />
+            <span style={{ fontWeight: 800, fontSize: 12, color: 'var(--text-2)' }}>{sm.label}</span>
+          </span>
+          {view === 'projects' && it.owners?.length > 0 && (
+            <span style={{ display: 'flex' }}>
+              {it.owners.slice(0, 3).map((o, i) => (
+                <span key={o.id} title={o.displayName} style={{
+                  width: 20, height: 20, borderRadius: 6,
+                  background: o.color, color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 800, fontSize: 9,
+                  marginLeft: i > 0 ? -5 : 0, border: '2px solid var(--card)',
+                }}>{o.initials}</span>
+              ))}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <Topbar />
@@ -135,21 +276,35 @@ export default function MyTasks() {
       </div>
 
       {tasks.length > 0 && (
-        <div style={{ position: 'relative', margin: '4px 2px 20px', maxWidth: 420 }}>
-          <span style={{ position: 'absolute', left: 15, top: '50%', transform: 'translateY(-50%)', fontSize: 15, color: 'var(--text-3)' }}>🔍</span>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search projects or tasks…"
-            style={{
-              width: '100%', padding: '12px 14px 12px 40px',
-              border: '1.5px solid var(--border)', borderRadius: 13,
-              fontSize: 14, fontWeight: 700, background: 'var(--card)', outline: 'none',
-              transition: 'border-color .15s',
-            }}
-            onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border)'}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 2px 20px', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: 420 }}>
+            <span style={{ position: 'absolute', left: 15, top: '50%', transform: 'translateY(-50%)', fontSize: 15, color: 'var(--text-3)' }}>🔍</span>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search projects or tasks…"
+              style={{
+                width: '100%', padding: '12px 14px 12px 40px',
+                border: '1.5px solid var(--border)', borderRadius: 13,
+                fontSize: 14, fontWeight: 700, background: 'var(--card)', outline: 'none',
+                transition: 'border-color .15s',
+              }}
+              onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[['list', 'Tasks'], ['board', 'Board view']].map(([key, label]) => (
+              <button key={key} onClick={() => setLayout(key)} style={{
+                border: `1.5px solid ${layout === key ? 'var(--accent)' : 'var(--border)'}`,
+                background: layout === key ? 'var(--inner-bg)' : 'var(--card)',
+                color: layout === key ? 'var(--text)' : 'var(--text-3)',
+                borderRadius: 11, padding: '9px 15px', fontWeight: 800, fontSize: 13,
+                cursor: 'pointer', transition: 'all .15s',
+              }}>{label}</button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -173,149 +328,46 @@ export default function MyTasks() {
         </div>
       )}
 
-      {sorted.length > 0 && (
+      {sorted.length > 0 && layout === 'list' && (
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
           gap: 14,
         }}>
-          {sorted.map(it => {
-            const pm = prioMeta(it.priority);
-            const sm = statusMeta(it.status);
+          {sorted.map(renderCard)}
+        </div>
+      )}
 
-            // ── Subtask-level card ──
-            if (it.kind === 'subtask') {
-              return (
-                <div
-                  key={it.id}
-                  onClick={() => navigate(`/projects/${it.projectId}/tasks/${it.taskId}`)}
-                  className="anim-pop"
-                  style={{
-                    background: 'var(--card)', border: '1px solid var(--border-2)',
-                    borderRadius: 16, boxShadow: 'var(--shadow-sm)',
-                    padding: 15, cursor: 'pointer', transition: 'transform .15s, box-shadow .15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(44,39,34,.09)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
-                >
-                  <div
-                    onClick={e => { e.stopPropagation(); navigate(`/projects/${it.projectId}/board`); }}
-                    style={{ fontWeight: 800, fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}
-                  >
-                    {it.project.title}
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--text-4)', marginBottom: 9 }}>
-                    ↳ {it.taskTitle}
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'start' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                      <span
-                        onClick={e => { e.stopPropagation(); toggleSubtaskDone(it.taskId, it.subtaskId, it.done); }}
-                        style={{
-                          width: 22, height: 22, borderRadius: 7, flexShrink: 0,
-                          border: `2px solid ${it.done ? sm.color : 'var(--checkbox-border)'}`,
-                          background: it.done ? sm.color : 'var(--card)',
-                          color: '#fff',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 13, fontWeight: 900, cursor: 'pointer',
-                        }}
-                      >{it.done ? '✓' : ''}</span>
-                      <span style={{
-                        fontWeight: 800, fontSize: 15, lineHeight: 1.25,
-                        color: it.done ? 'var(--text-3)' : 'var(--text)',
-                        textDecoration: it.done ? 'line-through' : 'none',
-                      }}>{it.title}</span>
-                    </span>
-                    <span style={{
-                      flexShrink: 0, fontWeight: 800, fontSize: 11,
-                      padding: '3px 9px', borderRadius: 999,
-                      color: pm.color, background: pm.bg,
-                    }}>{it.priority}</span>
-                  </div>
-
-                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--divider)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 800, fontSize: 12, color: it.deadline ? deadlineColor(it.deadline, it.done ? 'done' : '') : 'var(--text-4)' }}>
-                      {it.deadline ? `📅 ${fmtDate(it.deadline)}` : 'No deadline'}
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: sm.color }} />
-                      <span style={{ fontWeight: 800, fontSize: 12, color: 'var(--text-2)' }}>{sm.label}</span>
-                    </span>
-                  </div>
-                </div>
-              );
-            }
-
-            // ── Task-level card (fallback when a task has no subtasks assigned to me,
-            //     or when browsing "My projects") ──
-            const done  = it.subtasks?.filter(s => s.done).length || 0;
-            const total = it.subtasks?.length || 0;
-            return (
-              <div
-                key={it.id}
-                onClick={() => navigate(`/projects/${it.projectId}/tasks/${it.id}`)}
-                className="anim-pop"
-                style={{
-                  background: 'var(--card)', border: '1px solid var(--border-2)',
-                  borderRadius: 16, boxShadow: 'var(--shadow-sm)',
-                  padding: 15, cursor: 'pointer', transition: 'transform .15s, box-shadow .15s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(44,39,34,.09)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
-              >
-                <div
-                  onClick={e => { e.stopPropagation(); navigate(`/projects/${it.projectId}/board`); }}
-                  style={{ fontWeight: 800, fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}
-                >
-                  {it.project.title}
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'start' }}>
-                  <span style={{ fontWeight: 800, fontSize: 15, lineHeight: 1.25 }}>{it.title}</span>
-                  <span style={{
-                    flexShrink: 0, fontWeight: 800, fontSize: 11,
-                    padding: '3px 9px', borderRadius: 999,
-                    color: pm.color, background: pm.bg,
-                  }}>{it.priority}</span>
-                </div>
-
-                {/* Progress bar */}
-                <div style={{ margin: '12px 0 8px', height: 8, borderRadius: 999, background: 'var(--inner-border)', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', borderRadius: 999, background: sm.color, width: `${it.progress}%`, transition: 'width .3s' }} />
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 800, fontSize: 12, color: deadlineColor(it.deadline, it.status) }}>
-                    📅 {fmtDate(it.deadline)}
-                  </span>
-                  <span style={{ fontWeight: 800, fontSize: 12, color: 'var(--text-3)' }}>
-                    {done}/{total} subtasks
-                  </span>
-                </div>
-
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--divider)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 7 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: sm.color }} />
-                    <span style={{ fontWeight: 800, fontSize: 12, color: 'var(--text-2)' }}>{sm.label}</span>
-                  </span>
-                  {view === 'projects' && it.owners?.length > 0 && (
-                    <span style={{ display: 'flex' }}>
-                      {it.owners.slice(0, 3).map((o, i) => (
-                        <span key={o.id} title={o.displayName} style={{
-                          width: 20, height: 20, borderRadius: 6,
-                          background: o.color, color: '#fff',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 800, fontSize: 9,
-                          marginLeft: i > 0 ? -5 : 0, border: '2px solid var(--card)',
-                        }}>{o.initials}</span>
-                      ))}
-                    </span>
-                  )}
-                </div>
+      {sorted.length > 0 && layout === 'board' && (
+        <div style={{ display: 'flex', gap: 16, overflowX: 'auto', padding: '4px 2px 16px', alignItems: 'flex-start' }}>
+          {columns.map(col => (
+            <div key={col.key} style={{
+              flexShrink: 0, width: 282,
+              background: `color-mix(in srgb, ${col.color} 12%, var(--card))`, border: '1px solid var(--border-2)',
+              borderRadius: 18, padding: 14,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 13, padding: '0 4px' }}>
+                <span style={{ width: 11, height: 11, borderRadius: '50%', background: col.color }} />
+                <span style={{ fontWeight: 900, fontSize: 14 }}>{col.label}</span>
+                <span style={{
+                  marginLeft: 'auto', fontWeight: 800, fontSize: 12, color: 'var(--text-3)',
+                  background: 'var(--card)', borderRadius: 999, padding: '2px 9px',
+                }}>{col.cards.length}</span>
               </div>
-            );
-          })}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 50 }}>
+                {col.cards.map(renderCard)}
+                {col.cards.length === 0 && (
+                  <div style={{
+                    border: '1.5px dashed var(--dashed-border)', borderRadius: 12,
+                    minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--text-4)', fontWeight: 700, fontSize: 12,
+                  }}>
+                    No tasks
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </>

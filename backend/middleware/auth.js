@@ -36,9 +36,19 @@ function requireAdmin(req, res, next) {
 
 // ── getProjectPerms ───────────────────────────────────────────────────────────
 // Returns the current user's permissions for a project.
-// Admin always gets full access.
+// Admin always gets full access. A team member with edit+create permission on
+// the project's team can create projects for that team, so they're treated as
+// already having full access to every project under it.
 async function getProjectPerms(userId, projectId, isAdmin) {
   if (isAdmin) return { view: true, edit: true, create: true, delete: true };
+
+  const { rows: projRows } = await query('SELECT team_id FROM projects WHERE id = $1', [projectId]);
+  if (projRows.length) {
+    const teamPerms = await getTeamPerms(userId, projRows[0].team_id, false);
+    if (teamPerms.edit && teamPerms.create) {
+      return { view: true, edit: true, create: true, delete: true };
+    }
+  }
 
   const { rows } = await query(
     `SELECT perm_view, perm_edit, perm_create, perm_delete
