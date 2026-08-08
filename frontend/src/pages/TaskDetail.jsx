@@ -104,6 +104,7 @@ export default function TaskDetail() {
         priority:    task.priority,
         description: task.description || '',
         weighted:    task.weighted,
+        repeat:      task.repeat || null,
         accountableId: task.accountable?.id || null,
         responsibleId: task.responsible?.id || null,
         consultedId:   task.consulted?.id || null,
@@ -228,6 +229,12 @@ export default function TaskDetail() {
                   <span style={{ width: 9, height: 9, borderRadius: '50%', background: sm.color }} />
                   {sm.label}{task.status === 'pending' && task.blockedByTeam ? ` · ${task.blockedByTeam}` : ''}
                 </span>
+                {task.repeat && (
+                  <span style={{
+                    fontWeight: 800, fontSize: 11, padding: '3px 10px',
+                    borderRadius: 999, color: 'var(--text-2)', background: 'var(--divider)',
+                  }}>🔁 Repeats {task.repeat === 'daily' ? 'daily' : 'weekly'}</span>
+                )}
               </div>
               <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: '-.6px', lineHeight: 1.15 }}>
                 {task.title}

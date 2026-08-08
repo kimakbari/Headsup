@@ -12,6 +12,7 @@ const taskRoutes    = require('./routes/tasks');
 const uploadRoutes  = require('./routes/uploads');
 const notificationRoutes = require('./routes/notifications');
 const { authenticate } = require('./middleware/auth');
+const { startRecurringTaskScheduler } = require('./jobs/recurringTasks');
 
 const app = express();
 
@@ -51,4 +52,5 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`\n🚀  Heads up backend → http://localhost:${PORT}`);
   console.log(`    Frontend expected at: ${process.env.FRONTEND_URL || 'http://localhost:5173'}\n`);
+  startRecurringTaskScheduler();
 });

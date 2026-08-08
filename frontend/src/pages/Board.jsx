@@ -28,7 +28,10 @@ function TaskCard({ task, onOpen, onDragStart }) {
       onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'start' }}>
-        <span style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.3 }}>{task.title}</span>
+        <span style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.3 }}>
+          {task.repeat && <span title={task.repeat === 'daily' ? 'Repeats daily' : 'Repeats weekly'} style={{ marginRight: 5 }}>🔁</span>}
+          {task.title}
+        </span>
         <span style={{
           flexShrink: 0, fontWeight: 800, fontSize: 10,
           padding: '3px 8px', borderRadius: 999,
@@ -85,6 +88,7 @@ function TaskModal({ projectId, projectMembers, editTask, onClose, onSaved }) {
     priority:    editTask?.priority || 'Medium',
     description: editTask?.description || '',
     weighted:    editTask?.weighted || false,
+    repeat:      editTask?.repeat || null,
     accountableId: editTask?.accountable?.id || null,
     responsibleId: editTask?.responsible?.id || null,
     consultedId:   editTask?.consulted?.id || null,
@@ -242,6 +246,27 @@ function TaskModal({ projectId, projectMembers, editTask, onClose, onSaved }) {
             );
           })}
         </div>
+
+        {/* Repeat */}
+        <label style={{ display: 'block', fontWeight: 800, fontSize: 13, marginBottom: 7, color: 'var(--text-2)' }}>Repeat</label>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          {[[null, 'None'], ['daily', 'Daily'], ['weekly', 'Weekly']].map(([key, label]) => {
+            const on = form.repeat === key;
+            return (
+              <button key={label} onClick={() => set({ repeat: key })} style={{
+                flex: 1, padding: 10, borderRadius: 11, fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                border: `1.5px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+                background: on ? 'var(--inner-bg)' : 'var(--card)', color: on ? 'var(--text)' : 'var(--text-3)',
+                transition: 'all .15s',
+              }}>🔁 {label}</button>
+            );
+          })}
+        </div>
+        {form.repeat && (
+          <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--text-4)', marginTop: -10, marginBottom: 16 }}>
+            When the deadline passes, this task resets to To Do and its subtasks get unchecked for the next {form.repeat === 'daily' ? 'day' : 'week'}.
+          </div>
+        )}
 
         {/* RACI */}
         <label style={{ display: 'block', fontWeight: 800, fontSize: 13, marginBottom: 7, color: 'var(--text-2)' }}>RACI</label>

@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   description TEXT,
   weighted    BOOLEAN      NOT NULL DEFAULT FALSE,
   blocked_by_team VARCHAR(100),
+  repeat      VARCHAR(10)  CHECK (repeat IN ('daily', 'weekly')),
   accountable_id UUID REFERENCES members(id) ON DELETE SET NULL,
   responsible_id UUID REFERENCES members(id) ON DELETE SET NULL,
   consulted_id   UUID REFERENCES members(id) ON DELETE SET NULL,
@@ -80,6 +81,7 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS responsible_id UUID REFERENCES member
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS consulted_id   UUID REFERENCES members(id) ON DELETE SET NULL;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS informed_id    UUID REFERENCES members(id) ON DELETE SET NULL;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS blocked_by_team VARCHAR(100);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS repeat VARCHAR(10) CHECK (repeat IN ('daily', 'weekly'));
 
 -- ─── Task owners (many-to-many; a task can have any number of owners) ─────────
 CREATE TABLE IF NOT EXISTS task_owners (

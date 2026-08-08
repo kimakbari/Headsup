@@ -9,6 +9,8 @@ const BLOCKER_TEAMS = [
   'Market place', 'Market', 'HR', 'Commercial', 'Finance', 'Smart', 'Product',
 ];
 
+const REPEAT_OPTIONS = ['daily', 'weekly'];
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 async function calcProgress(taskRow, subs) {
   if (!subs.length) return taskRow.status === 'done' ? 100 : 0;
@@ -108,6 +110,7 @@ async function buildTask(row, userId, isAdmin) {
     description: row.description,
     weighted:    row.weighted,
     blockedByTeam: row.blocked_by_team,
+    repeat:      row.repeat,
     accountable: raciById[row.accountable_id] || null,
     responsible: raciById[row.responsible_id] || null,
     consulted:   raciById[row.consulted_id] || null,
@@ -231,9 +234,10 @@ router.post('/', async (req, res) => {
   try {
     const {
       projectId, title, ownerIds, deadline, priority, description, weighted, subtasks,
-      accountableId, responsibleId, consultedId, informedId,
+      accountableId, responsibleId, consultedId, informedId, repeat,
     } = req.body;
     if (!projectId || !title?.trim()) return res.status(400).json({ error: 'projectId and title required' });
+    if (repeat && !REPEAT_OPTIONS.includes(repeat)) return res.status(400).json({ error: 'Invalid repeat value' });
 
     const perms = await getProjectPerms(req.user.id, projectId, req.user.is_admin);
     if (!perms.create) return res.status(403).json({ error: 'No create permission' });
@@ -250,10 +254,10 @@ router.post('/', async (req, res) => {
     const result = await withTransaction(async (client) => {
       const { rows } = await client.query(
         `INSERT INTO tasks (project_id, title, deadline, priority, description, weighted,
-                             accountable_id, responsible_id, consulted_id, informed_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+                             accountable_id, responsible_id, consulted_id, informed_id, repeat)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
         [projectId, title.trim(), deadline || null, priority || 'Medium', description?.trim() || null, !!weighted,
-         accountableId || null, responsibleId || null, consultedId || null, informedId || null]
+         accountableId || null, responsibleId || null, consultedId || null, informedId || null, repeat || null]
       );
       const task = rows[0];
 
@@ -304,8 +308,9 @@ router.put('/:id', async (req, res) => {
 
     const {
       title, ownerIds, deadline, priority, description, weighted, subtasks,
-      accountableId, responsibleId, consultedId, informedId,
+      accountableId, responsibleId, consultedId, informedId, repeat,
     } = req.body;
+    if (repeat && !REPEAT_OPTIONS.includes(repeat)) return res.status(400).json({ error: 'Invalid repeat value' });
 
     const subs = subtasks || [];
     if (weighted && subs.length) {
@@ -318,10 +323,10 @@ router.put('/:id', async (req, res) => {
     await withTransaction(async (client) => {
       await client.query(
         `UPDATE tasks SET title=$1, deadline=$2, priority=$3, description=$4, weighted=$5,
-                           accountable_id=$6, responsible_id=$7, consulted_id=$8, informed_id=$9
-          WHERE id=$10`,
+                           accountable_id=$6, responsible_id=$7, consulted_id=$8, informed_id=$9, repeat=$10
+          WHERE id=$11`,
         [title.trim(), deadline || null, priority, description?.trim() || null, !!weighted,
-         accountableId || null, responsibleId || null, consultedId || null, informedId || null, id]
+         accountableId || null, responsibleId || null, consultedId || null, informedId || null, repeat || null, id]
       );
 
       await client.query('DELETE FROM task_owners WHERE task_id = $1', [id]);
